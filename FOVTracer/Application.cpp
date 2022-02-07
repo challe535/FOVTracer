@@ -28,14 +28,20 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 
 	Log::Init();
 
-	Scene TestScene;
 	SceneObject TestObject;
 	TestObject.LoadFromPath(Utils::GetResourcePath("models/quad.obj"));
-	TestScene.AddSceneObject(TestObject);
+	RayScene.AddSceneObject(TestObject);
 	
-	LUM_CORE_INFO("{0} objects in scene.", TestScene.GetNumSceneObjects());
+	CORE_INFO("{0} objects in scene.", RayScene.GetNumSceneObjects());
 
 	//Initalize and configure tracer
+	TracerConfigInfo Config;
+	Config.Height = height;
+	Config.Width = width;
+	Config.Instance = instance;
+	Config.Vsync = true;
+
+	RayTracer.Init(Config, Window, RayScene);
 }
 
 void Application::Run()
@@ -51,6 +57,8 @@ void Application::Run()
 
 		//App specific code goes here
 		//Feed scene into tracer and tell it to trace the scene
+		RayTracer.Update();
+		RayTracer.Render();
 	}
 
 	Cleanup();
@@ -58,5 +66,7 @@ void Application::Run()
 
 void Application::Cleanup()
 {
+	RayScene.Clear();
+	RayTracer.Cleanup();
 	DestroyWindow(Window);
 }

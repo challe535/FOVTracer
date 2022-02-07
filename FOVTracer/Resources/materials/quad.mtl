@@ -4,4 +4,4 @@ newmtl quad_mat
    Ks 0.000 0.000 0.000
    d 1.0
    illum 2
-   map_Kd -texres 512 textures\statue.jpg
+   map_Kd -texres 512 ..\textures\statue.jpg

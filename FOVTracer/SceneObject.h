@@ -14,7 +14,8 @@ public:
 	bool LoadFromPath(const std::string& Path);
 
 	void Clear();
-private:
+
 	std::vector<StaticMesh> StaticMeshes;
+private:
 };
 

@@ -51,6 +51,7 @@ void StaticMesh::Clear()
 	Vertices.clear();
 	Normals.clear();
 	Texcoords.clear();
+	MeshMaterial = {};
 	IsMaterialSet = false;
 }
 

@@ -12,8 +12,9 @@ public:
 	uint32_t GetNumSceneObjects();
 
 	void Clear();
-private:
+
 	std::vector<SceneObject> SceneObjects;
+private:
 	//std::vector<PointLight> ScenePointLights;
 };
 

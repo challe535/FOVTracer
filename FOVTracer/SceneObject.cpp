@@ -8,7 +8,7 @@ bool SceneObject::LoadFromPath(const std::string& Path)
 
 	if (Success)
 	{
-		LUM_CORE_INFO("Successfully loaded {0} static meshes from {1}.", StaticMeshes.size(), Path);
+		CORE_TRACE("Successfully loaded {0} static meshes from {1}.", StaticMeshes.size(), Path);
 
 		uint32_t MeshID = 0;
 		for (auto it = StaticMeshes.begin(); it < StaticMeshes.end(); it++)
@@ -16,11 +16,13 @@ bool SceneObject::LoadFromPath(const std::string& Path)
 			MeshID++;
 			StaticMesh& Mesh = *it;
 
-			LUM_CORE_INFO("Mesh {0}:", MeshID);
-			LUM_CORE_INFO("Number of vertices: {0}", Mesh.NumVertices);
-			LUM_CORE_INFO("Has normals: {0}", Mesh.HasNormals());
-			LUM_CORE_INFO("Has texcoords: {0}", Mesh.HasTextureCoords());
-			LUM_CORE_INFO("Has material: {0}", Mesh.HasMaterial());
+			CORE_TRACE("Mesh {0}:", MeshID);
+			CORE_TRACE("Number of vertices: {0}", Mesh.NumVertices);
+			CORE_TRACE("Has normals: {0}", Mesh.HasNormals());
+			CORE_TRACE("Has texcoords: {0}", Mesh.HasTextureCoords());
+			CORE_TRACE("Has material: {0}", Mesh.HasMaterial());
+
+			CORE_TRACE("Material texture path: {0}", Mesh.MeshMaterial.TexturePath);
 		}
 	}
 

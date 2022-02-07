@@ -33,12 +33,15 @@ public:
 
 	void Clear();
 
-private:
 	std::vector<Vector3f> Vertices;
 	std::vector<Vector3f> Normals;
 	std::vector<Vector2f> Texcoords;
+	std::vector<uint32_t> Indices;
 
 	Material MeshMaterial;
 	bool IsMaterialSet = false;
+
+private:
+
 };
 

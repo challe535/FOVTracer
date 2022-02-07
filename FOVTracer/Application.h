@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core.h"
+#include "Tracer.h"
 
 class Application
 {
@@ -23,5 +24,7 @@ public:
 
 private:
 	HWND Window;
+	Tracer RayTracer;
+	Scene RayScene;
 };
 
