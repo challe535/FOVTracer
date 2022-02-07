@@ -116,7 +116,6 @@ namespace D3D12
 			}
 		}
 #endif
-
 		// Create a DXGI Factory
 		HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&d3d.Factory));
 		Utils::Validate(hr, L"Error: failed to create DXGI factory!");
@@ -151,12 +150,12 @@ namespace D3D12
 #endif
 				break;
 			}
+		}
 
-			if (d3d.Device == nullptr)
-			{
-				// Didn't find a device that supports ray tracing.
-				Utils::Validate(E_FAIL, L"Error: failed to create ray tracing device!");
-			}
+		if (d3d.Device == nullptr)
+		{
+			// Didn't find a device that supports ray tracing.
+			Utils::Validate(E_FAIL, L"Error: failed to create ray tracing device!");
 		}
 	}
 

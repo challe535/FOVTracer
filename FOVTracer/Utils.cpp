@@ -102,18 +102,13 @@ namespace Utils
 
 						Mat.Name = pMat->GetName().C_Str();
 
-						for(int texcount = 0; texcount <= AI_TEXTURE_TYPE_MAX; texcount++)
-							CORE_WARN("Texture {0} count: {1}", texcount, pMat->GetTextureCount((aiTextureType)texcount));
 
-						if (pMat->GetTextureCount(aiTextureType_BASE_COLOR) > 0)
-						{
-							aiString TexturePath;
-							pMat->GetTexture(aiTextureType_BASE_COLOR, 0, &TexturePath);
-							
-							CORE_WARN("Texture path is {0}", TexturePath.C_Str());
+						//aiString TexturePath;
+						//pMat->GetTexture(aiTextureType_DIFFUSE, 0, &TexturePath);
+						//	
+						CORE_WARN("Material name is {0}", Mat.Name);
 
-							Mat.TexturePath = TexturePath.C_Str();
-						}
+						Mat.TexturePath = std::string(PATH_TO_RESOURCES).append("textures/statue.jpg");
 
 						SMesh.SetMaterial(Mat);
 					}
