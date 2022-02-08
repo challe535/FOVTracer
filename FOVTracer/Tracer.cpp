@@ -1,4 +1,5 @@
 #include "Tracer.h"
+#include "Log.h"
 
 void Tracer::Init(TracerConfigInfo config, HWND& window, Scene scene) 
 {
@@ -8,6 +9,7 @@ void Tracer::Init(TracerConfigInfo config, HWND& window, Scene scene)
 
 	D3DShaders::Init_Shader_Compiler(ShaderCompiler);
 
+#if DXR_ENABLED
 	D3D12::Create_Device(D3D);
 	D3D12::Create_Command_Queue(D3D);
 	D3D12::Create_Command_Allocator(D3D);
@@ -41,23 +43,31 @@ void Tracer::Init(TracerConfigInfo config, HWND& window, Scene scene)
 
 	D3D12::WaitForGPU(D3D);
 	D3D12::Reset_CommandList(D3D);
+#else
+	CORE_WARN("Raytracing is disabled! No rendering will happen until \"DXR_ENALBED\" is set to 1 in DX.h");
+#endif
 }
 
 void Tracer::Update()
 {
+#if DXR_ENABLED
 	D3DResources::Update_View_CB(D3D, Resources);
+#endif
 }
 
 void Tracer::Render()
 {
+#if DXR_ENABLED
 	DXR::Build_Command_List(D3D, DXR, Resources);
 	D3D12::Present(D3D);
 	D3D12::MoveToNextFrame(D3D);
 	D3D12::Reset_CommandList(D3D);
+#endif
 }
 
 void Tracer::Cleanup()
 {
+#if DXR_ENABLED
 	D3D12::WaitForGPU(D3D);
 	CloseHandle(D3D.FenceEvent);
 
@@ -65,4 +75,5 @@ void Tracer::Cleanup()
 	D3DResources::Destroy(Resources);
 	D3DShaders::Destroy(ShaderCompiler);
 	D3D12::Destroy(D3D);
+#endif
 }

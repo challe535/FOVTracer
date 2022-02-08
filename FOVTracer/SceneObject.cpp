@@ -17,10 +17,10 @@ bool SceneObject::LoadFromPath(const std::string& Path)
 			StaticMesh& Mesh = *it;
 
 			CORE_TRACE("Mesh {0}:", MeshID);
-			CORE_TRACE("Number of vertices: {0}", Mesh.NumVertices);
-			CORE_TRACE("Has normals: {0}", Mesh.HasNormals());
-			CORE_TRACE("Has texcoords: {0}", Mesh.HasTextureCoords());
-			CORE_TRACE("Has material: {0}", Mesh.HasMaterial());
+			CORE_TRACE("Number of vertices: {0}", Mesh.Vertices.size());
+			CORE_TRACE("Has normals: {0}", Mesh.HasNormals);
+			CORE_TRACE("Has texcoords: {0}", Mesh.HasTexcoords);
+			CORE_TRACE("Has material: {0}", Mesh.HasMaterial);
 
 			CORE_TRACE("Material texture path: {0}", Mesh.MeshMaterial.TexturePath);
 		}

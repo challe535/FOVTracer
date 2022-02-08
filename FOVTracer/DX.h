@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#define DXR_ENABLED 0
 #define NAME_D3D_RESOURCES 1
 
 

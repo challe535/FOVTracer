@@ -21,9 +21,11 @@ namespace Utils
 		}
 	}
 
-
+	//TODO: Make recursively process nodes if needed by important scenes later.
 	bool LoadStaticMeshes(const std::string& Filepath, std::vector<StaticMesh>& SMeshVector)
 	{
+		bool LoadSucceeded = true;
+
 		uint32_t LoadFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_MakeLeftHanded |
 			aiProcess_FlipUVs | aiProcess_FlipWindingOrder;
 
@@ -38,106 +40,107 @@ namespace Utils
 			//Create static meshes
 			for (unsigned int i = 0; i < pScene->mNumMeshes; i++)
 			{
-				unsigned int j = 0;
-
 				aiMesh* pMesh = pScene->mMeshes[i];
-				StaticMesh SMesh;
-
-				//Set vertex positions and attributes if present
-				if (pMesh->HasPositions())
+			
+				if (!pMesh->HasPositions())
 				{
-					SMesh.ReserveNumVertices(pMesh->mNumVertices);
+					CORE_ERROR("Mesh {0} from file \"{1}\" is missing vertex positions!", i, Filepath);
+					LoadSucceeded = false;
+					continue;
+				}
+
+				unsigned int j = 0;
+				StaticMesh SMesh;
+				SMesh.ReserveNumVertices(pMesh->mNumVertices);
+
+				//Create vertices
+				for (j = 0; j < pMesh->mNumVertices; j++)
+				{
+					Vertex Vtx;
 
 					for (j = 0; j < pMesh->mNumVertices; j++)
 					{
 
 						aiVector3D Vec = pMesh->mVertices[j];
 						Vector3f VertPos(Vec.x, Vec.y, Vec.z);
-						SMesh.AppendVertex(VertPos);
-					}
-
-					//Set vertex normals
-					if (pMesh->HasNormals())
-					{
-						for (j = 0; j < pMesh->mNumVertices; j++)
+						Vtx.Position = VertPos;
+						
+						//Texture coords. Only single channel.
+						if (pMesh->HasTextureCoords(0))
 						{
-							aiVector3D Vec = pMesh->mNormals[j];
-							Vector3f Normal(Vec.x, Vec.y, Vec.z);
-							SMesh.AppendNormal(Normal);
-						}
-					}
+							SMesh.HasTexcoords = true;
 
-					//Set vertex texcoords. Single channel supported for now.
-					if (pMesh->HasTextureCoords(0))
-					{
-						for (j = 0; j < pMesh->mNumVertices; j++)
-						{
 							aiVector3D Vec = pMesh->mTextureCoords[0][j];
 							Vector2f Texcoord(Vec.x, Vec.y);
-
-							SMesh.AppendTextureCoord(Texcoord);
-
-							Vertex Vert;
-							Vec = pMesh->mVertices[j];
-							Vector3f VertPos(Vec.x, Vec.y, Vec.z);
-							Vert.Position = VertPos;
-							Vert.Texcoord = Texcoord;
-
-							SMesh.Verts.push_back(Vert);
+							Vtx.Texcoord = Texcoord;
 						}
-					}
 
-					if (pMesh->HasFaces())
-					{
-						for (j = 0; j < pMesh->mNumFaces; j++)
+						//Vertex normals.
+						if (pMesh->HasNormals())
 						{
-							for (uint32_t k = 0; k < pMesh->mFaces[j].mNumIndices; k++)
-							{
-								uint32_t Index = pMesh->mFaces[j].mIndices[k];
-								SMesh.Indices.push_back(Index);
-							}
+							SMesh.HasNormals = true;
+
+							aiVector3D Vec = pMesh->mNormals[j];
+							Vector3f Normal(Vec.x, Vec.y, Vec.z);
+							//TODO
+							//Add normal to Vertex here
 						}
 					}
-					else
+
+					SMesh.Vertices.push_back(Vtx);
+				}
+
+				//Set indices
+				if (pMesh->HasFaces())
+				{
+					for (j = 0; j < pMesh->mNumFaces; j++)
 					{
-						CORE_ERROR("Missing indices for mesh at {0}!", Filepath);
-						return false;
+						for (uint32_t k = 0; k < pMesh->mFaces[j].mNumIndices; k++)
+						{
+							uint32_t Index = pMesh->mFaces[j].mIndices[k];
+							SMesh.Indices.push_back(Index);
+						}
 					}
-
-					//Set material. Currently single material with texture only.
-					if (pScene->HasMaterials())
-					{
-						aiMaterial* pMat = pScene->mMaterials[pMesh->mMaterialIndex];
-						Material Mat;
-
-						Mat.Name = pMat->GetName().C_Str();
-
-
-						//aiString TexturePath;
-						//pMat->GetTexture(aiTextureType_DIFFUSE, 0, &TexturePath);
-						//	
-						CORE_WARN("Material name is {0}", Mat.Name);
-
-						Mat.TexturePath = std::string(PATH_TO_RESOURCES).append("textures/statue.jpg");
-
-						SMesh.SetMaterial(Mat);
-					}
-					SMeshVector.push_back(SMesh);
 				}
 				else
 				{
-					CORE_ERROR("Mesh at {0} has no positions!", Filepath);
-					return false;
+					CORE_ERROR("Missing indices for mesh {0} at {1}!", i, Filepath);
+					LoadSucceeded = false;
+					continue;
 				}
+					
+				//Set material. Currently single material with texture only.
+				if (pScene->HasMaterials())
+				{
+					SMesh.HasMaterial = true;
+
+					aiMaterial* pMat = pScene->mMaterials[pMesh->mMaterialIndex];
+					Material Mat;
+
+					Mat.Name = pMat->GetName().C_Str();
+
+					//TODO: Make more flexible when needed later
+					Mat.TexturePath = std::string(PATH_TO_RESOURCES).append("textures/statue.jpg");
+
+					SMesh.MeshMaterial = Mat;
+				}
+				else
+				{
+					CORE_ERROR("Missing material for mesh {0} at {1}!", i, Filepath);
+					LoadSucceeded = false;
+					continue;
+				}
+
+				SMeshVector.push_back(SMesh);
 			}
 		}
 		else
 		{
 			CORE_ERROR("Failed to load scene at {0}!", Filepath);
-			return false;
+			LoadSucceeded = false;
 		}
 
-		return true;
+		return LoadSucceeded;
 	}
 
 	std::string GetResourcePath(const std::string& ResourceName)

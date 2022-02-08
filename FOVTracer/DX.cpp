@@ -515,7 +515,7 @@ namespace D3DResources
 	void Create_Vertex_Buffer(D3D12Global& d3d, D3D12Resources& resources, StaticMesh& model)
 	{
 		// Create the vertex buffer resource
-		D3D12BufferCreateInfo info(((UINT)model.Verts.size() * sizeof(Vertex)), D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+		D3D12BufferCreateInfo info(((UINT)model.Vertices.size() * sizeof(Vertex)), D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
 		Create_Buffer(d3d, info, &resources.vertexBuffer);
 #if NAME_D3D_RESOURCES
 		resources.vertexBuffer->SetName(L"Vertex Buffer");
@@ -527,7 +527,7 @@ namespace D3DResources
 		HRESULT hr = resources.vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin));
 		Utils::Validate(hr, L"Error: failed to map vertex buffer!");
 
-		memcpy(pVertexDataBegin, model.Verts.data(), info.size);
+		memcpy(pVertexDataBegin, model.Vertices.data(), info.size);
 		resources.vertexBuffer->Unmap(0, nullptr);
 
 		// Initialize the vertex buffer view
@@ -732,7 +732,7 @@ namespace DXR
 		geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
 		geometryDesc.Triangles.VertexBuffer.StartAddress = resources.vertexBuffer->GetGPUVirtualAddress();
 		geometryDesc.Triangles.VertexBuffer.StrideInBytes = resources.vertexBufferView.StrideInBytes;
-		geometryDesc.Triangles.VertexCount = static_cast<UINT>(model.Verts.size());
+		geometryDesc.Triangles.VertexCount = static_cast<UINT>(model.Vertices.size());
 		geometryDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
 		geometryDesc.Triangles.IndexBuffer = resources.indexBuffer->GetGPUVirtualAddress();
 		geometryDesc.Triangles.IndexFormat = resources.indexBufferView.Format;
@@ -1248,7 +1248,7 @@ namespace DXR
 		vertexSRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
 		vertexSRVDesc.Buffer.StructureByteStride = 0;
 		vertexSRVDesc.Buffer.FirstElement = 0;
-		vertexSRVDesc.Buffer.NumElements = (static_cast<UINT>(model.Verts.size()) * sizeof(Vertex)) / sizeof(float);
+		vertexSRVDesc.Buffer.NumElements = (static_cast<UINT>(model.Vertices.size()) * sizeof(Vertex)) / sizeof(float);
 		vertexSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
 		handle.ptr += handleIncrement;
