@@ -1,6 +1,8 @@
+#include "pch.h"
 #include "DX.h"
 #include "Utils.h"
 #include "Log.h"
+#include "Math.h"
 
 namespace D3DShaders
 {
@@ -758,7 +760,7 @@ namespace DXR
 
 		// Create the BLAS scratch buffer
 		D3D12BufferCreateInfo bufferInfo(ASPreBuildInfo.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		bufferInfo.alignment = max(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
+		bufferInfo.alignment = Math::max(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
 		D3DResources::Create_Buffer(d3d, bufferInfo, &dxr.BLAS.pScratch);
 #if NAME_D3D_RESOURCES
 		dxr.BLAS.pScratch->SetName(L"DXR BLAS Scratch");
@@ -840,7 +842,7 @@ namespace DXR
 
 		// Create TLAS scratch buffer
 		D3D12BufferCreateInfo bufferInfo(ASPreBuildInfo.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		bufferInfo.alignment = max(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
+		bufferInfo.alignment = Math::max(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
 		D3DResources::Create_Buffer(d3d, bufferInfo, &dxr.TLAS.pScratch);
 #if NAME_D3D_RESOURCES
 		dxr.TLAS.pScratch->SetName(L"DXR TLAS Scratch");

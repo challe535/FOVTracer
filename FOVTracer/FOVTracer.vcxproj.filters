@@ -5,95 +5,115 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
-    </Filter>
     <Filter Include="Resource Files">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\pch">
+      <UniqueIdentifier>{948aa003-e3e1-40a2-9659-06b4dab19dbe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\App">
+      <UniqueIdentifier>{0f5a16a6-488d-4276-8b8e-ec467ef5e901}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Geometry">
+      <UniqueIdentifier>{26174cba-464c-4482-8c01-4f1f9cea908e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Math">
+      <UniqueIdentifier>{e61f4323-f628-45d3-907e-3f1174b157fc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Rendering">
+      <UniqueIdentifier>{d29d35aa-a725-4af7-8cdc-926121e288fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Utils">
+      <UniqueIdentifier>{ac1c4c9d-c5c5-473f-bf82-b48f83ead13b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="AppWindow.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\pch.cpp">
+      <Filter>Source Files\pch</Filter>
     </ClCompile>
-    <ClCompile Include="Application.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Application.cpp">
+      <Filter>Source Files\App</Filter>
     </ClCompile>
-    <ClCompile Include="Utils.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\AppWindow.cpp">
+      <Filter>Source Files\App</Filter>
     </ClCompile>
-    <ClCompile Include="StaticMesh.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Scene.cpp">
+      <Filter>Source Files\Geometry</Filter>
     </ClCompile>
-    <ClCompile Include="Scene.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\SceneObject.cpp">
+      <Filter>Source Files\Geometry</Filter>
     </ClCompile>
-    <ClCompile Include="Log.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\StaticMesh.cpp">
+      <Filter>Source Files\Geometry</Filter>
     </ClCompile>
-    <ClCompile Include="SceneObject.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Transform.cpp">
+      <Filter>Source Files\Math</Filter>
     </ClCompile>
-    <ClCompile Include="Transform.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\DX.cpp">
+      <Filter>Source Files\Rendering</Filter>
     </ClCompile>
-    <ClCompile Include="Tracer.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Tracer.cpp">
+      <Filter>Source Files\Rendering</Filter>
     </ClCompile>
-    <ClCompile Include="DX.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Log.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Utils.cpp">
+      <Filter>Source Files\Utils</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Application.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\Core.h">
+      <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="AppWindow.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\pch.h">
+      <Filter>Source Files\pch</Filter>
     </ClInclude>
-    <ClInclude Include="Utils.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\Application.h">
+      <Filter>Source Files\App</Filter>
     </ClInclude>
-    <ClInclude Include="Core.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\AppWindow.h">
+      <Filter>Source Files\App</Filter>
     </ClInclude>
-    <ClInclude Include="StaticMesh.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\Scene.h">
+      <Filter>Source Files\Geometry</Filter>
     </ClInclude>
-    <ClInclude Include="Scene.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\SceneObject.h">
+      <Filter>Source Files\Geometry</Filter>
     </ClInclude>
-    <ClInclude Include="Vector3.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\StaticMesh.h">
+      <Filter>Source Files\Geometry</Filter>
     </ClInclude>
-    <ClInclude Include="Vector2.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\Math.h">
+      <Filter>Source Files\Math</Filter>
     </ClInclude>
-    <ClInclude Include="Math.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\Vector2.h">
+      <Filter>Source Files\Math</Filter>
     </ClInclude>
-    <ClInclude Include="Platform.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\Vector3.h">
+      <Filter>Source Files\Math</Filter>
     </ClInclude>
-    <ClInclude Include="DX.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\Transform.h">
+      <Filter>Source Files\Math</Filter>
     </ClInclude>
-    <ClInclude Include="ResourceManagement.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\DX.h">
+      <Filter>Source Files\Rendering</Filter>
     </ClInclude>
-    <ClInclude Include="Log.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\Tracer.h">
+      <Filter>Source Files\Rendering</Filter>
     </ClInclude>
-    <ClInclude Include="SceneObject.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\Log.h">
+      <Filter>Source Files\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="Transform.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\ResourceManagement.h">
+      <Filter>Source Files\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="Tracer.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="Source\Utils.h">
+      <Filter>Source Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Platform.h">
+      <Filter>Source Files\App</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,3 +1,4 @@
+#include "pch.h"
 #include "Scene.h"
 
 void Scene::AddSceneObject(const SceneObject& SObject)

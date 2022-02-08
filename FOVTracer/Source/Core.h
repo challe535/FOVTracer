@@ -28,7 +28,6 @@
 #pragma once
 
 #include "Math.h"
-#include "Application.h"
 #include "Utils.h"
 #include "Scene.h"
 #include "Log.h"

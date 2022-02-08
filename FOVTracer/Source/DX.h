@@ -14,7 +14,6 @@
 #include <wrl.h>
 #include <atlcomcli.h>
 
-
 #include <string>
 #include <vector>
 

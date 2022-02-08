@@ -67,6 +67,8 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)Include;</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <PrecompiledHeader>Create</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -88,6 +90,8 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)\Include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <PrecompiledHeader>Create</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -102,34 +106,36 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Application.cpp" />
-    <ClCompile Include="DX.cpp" />
-    <ClCompile Include="Log.cpp" />
-    <ClCompile Include="Scene.cpp" />
-    <ClCompile Include="SceneObject.cpp" />
-    <ClCompile Include="StaticMesh.cpp" />
-    <ClCompile Include="Tracer.cpp" />
-    <ClCompile Include="Transform.cpp" />
-    <ClCompile Include="Utils.cpp" />
-    <ClCompile Include="AppWindow.cpp" />
+    <ClCompile Include="Source\Application.cpp" />
+    <ClCompile Include="Source\AppWindow.cpp" />
+    <ClCompile Include="Source\DX.cpp" />
+    <ClCompile Include="Source\Log.cpp" />
+    <ClCompile Include="Source\pch.cpp" />
+    <ClCompile Include="Source\Scene.cpp" />
+    <ClCompile Include="Source\SceneObject.cpp" />
+    <ClCompile Include="Source\StaticMesh.cpp" />
+    <ClCompile Include="Source\Tracer.cpp" />
+    <ClCompile Include="Source\Transform.cpp" />
+    <ClCompile Include="Source\Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Application.h" />
-    <ClInclude Include="Core.h" />
-    <ClInclude Include="DX.h" />
-    <ClInclude Include="Log.h" />
-    <ClInclude Include="Math.h" />
-    <ClInclude Include="Platform.h" />
-    <ClInclude Include="ResourceManagement.h" />
-    <ClInclude Include="Scene.h" />
-    <ClInclude Include="SceneObject.h" />
-    <ClInclude Include="StaticMesh.h" />
-    <ClInclude Include="Tracer.h" />
-    <ClInclude Include="Transform.h" />
-    <ClInclude Include="Utils.h" />
-    <ClInclude Include="AppWindow.h" />
-    <ClInclude Include="Vector2.h" />
-    <ClInclude Include="Vector3.h" />
+    <ClInclude Include="Source\Application.h" />
+    <ClInclude Include="Source\AppWindow.h" />
+    <ClInclude Include="Source\Core.h" />
+    <ClInclude Include="Source\DX.h" />
+    <ClInclude Include="Source\Log.h" />
+    <ClInclude Include="Source\Math.h" />
+    <ClInclude Include="Source\pch.h" />
+    <ClInclude Include="Source\Platform.h" />
+    <ClInclude Include="Source\ResourceManagement.h" />
+    <ClInclude Include="Source\Scene.h" />
+    <ClInclude Include="Source\SceneObject.h" />
+    <ClInclude Include="Source\StaticMesh.h" />
+    <ClInclude Include="Source\Tracer.h" />
+    <ClInclude Include="Source\Transform.h" />
+    <ClInclude Include="Source\Utils.h" />
+    <ClInclude Include="Source\Vector2.h" />
+    <ClInclude Include="Source\Vector3.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
