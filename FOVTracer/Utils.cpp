@@ -24,7 +24,8 @@ namespace Utils
 
 	bool LoadStaticMeshes(const std::string& Filepath, std::vector<StaticMesh>& SMeshVector)
 	{
-		uint32_t LoadFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ConvertToLeftHanded;
+		uint32_t LoadFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_MakeLeftHanded |
+			aiProcess_FlipUVs | aiProcess_FlipWindingOrder;
 
 		Assimp::Importer Importer;
 		const aiScene* pScene = Importer.ReadFile(Filepath.c_str(), LoadFlags);
@@ -73,7 +74,16 @@ namespace Utils
 						{
 							aiVector3D Vec = pMesh->mTextureCoords[0][j];
 							Vector2f Texcoord(Vec.x, Vec.y);
+
 							SMesh.AppendTextureCoord(Texcoord);
+
+							Vertex Vert;
+							Vec = pMesh->mVertices[j];
+							Vector3f VertPos(Vec.x, Vec.y, Vec.z);
+							Vert.Position = VertPos;
+							Vert.Texcoord = Texcoord;
+
+							SMesh.Verts.push_back(Vert);
 						}
 					}
 
@@ -112,7 +122,6 @@ namespace Utils
 
 						SMesh.SetMaterial(Mat);
 					}
-
 					SMeshVector.push_back(SMesh);
 				}
 				else

@@ -515,7 +515,7 @@ namespace D3DResources
 	void Create_Vertex_Buffer(D3D12Global& d3d, D3D12Resources& resources, StaticMesh& model)
 	{
 		// Create the vertex buffer resource
-		D3D12BufferCreateInfo info(((UINT)model.Vertices.size() * sizeof(Vector3f)), D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+		D3D12BufferCreateInfo info(((UINT)model.Verts.size() * sizeof(Vertex)), D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
 		Create_Buffer(d3d, info, &resources.vertexBuffer);
 #if NAME_D3D_RESOURCES
 		resources.vertexBuffer->SetName(L"Vertex Buffer");
@@ -527,12 +527,12 @@ namespace D3DResources
 		HRESULT hr = resources.vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin));
 		Utils::Validate(hr, L"Error: failed to map vertex buffer!");
 
-		memcpy(pVertexDataBegin, model.Vertices.data(), info.size);
+		memcpy(pVertexDataBegin, model.Verts.data(), info.size);
 		resources.vertexBuffer->Unmap(0, nullptr);
 
 		// Initialize the vertex buffer view
 		resources.vertexBufferView.BufferLocation = resources.vertexBuffer->GetGPUVirtualAddress();
-		resources.vertexBufferView.StrideInBytes = sizeof(Vector3f);
+		resources.vertexBufferView.StrideInBytes = sizeof(Vertex);
 		resources.vertexBufferView.SizeInBytes = static_cast<UINT>(info.size);
 	}
 
@@ -732,7 +732,7 @@ namespace DXR
 		geometryDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
 		geometryDesc.Triangles.VertexBuffer.StartAddress = resources.vertexBuffer->GetGPUVirtualAddress();
 		geometryDesc.Triangles.VertexBuffer.StrideInBytes = resources.vertexBufferView.StrideInBytes;
-		geometryDesc.Triangles.VertexCount = static_cast<UINT>(model.Vertices.size());
+		geometryDesc.Triangles.VertexCount = static_cast<UINT>(model.Verts.size());
 		geometryDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
 		geometryDesc.Triangles.IndexBuffer = resources.indexBuffer->GetGPUVirtualAddress();
 		geometryDesc.Triangles.IndexFormat = resources.indexBufferView.Format;
@@ -876,7 +876,7 @@ namespace DXR
 	void Create_RayGen_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler)
 	{
 		// Load and compile the ray generation shader
-		dxr.rgs = RtProgram(D3D12ShaderInfo(L"shaders\\RayGen.hlsl", L"", L"lib_6_3"));
+		dxr.rgs = RtProgram(D3D12ShaderInfo(L"Shaders\\RayGen.hlsl", L"", L"lib_6_3"));
 		D3DShaders::Compile_Shader(shaderCompiler, dxr.rgs);
 
 		// Describe the ray generation root signature
@@ -926,7 +926,7 @@ namespace DXR
 	void Create_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler)
 	{
 		// Load and compile the miss shader
-		dxr.miss = RtProgram(D3D12ShaderInfo(L"shaders\\Miss.hlsl", L"", L"lib_6_3"));
+		dxr.miss = RtProgram(D3D12ShaderInfo(L"Shaders\\Miss.hlsl", L"", L"lib_6_3"));
 		D3DShaders::Compile_Shader(shaderCompiler, dxr.miss);
 	}
 
@@ -937,7 +937,7 @@ namespace DXR
 	{
 		// Load and compile the Closest Hit shader
 		dxr.hit = HitProgram(L"Hit");
-		dxr.hit.chs = RtProgram(D3D12ShaderInfo(L"shaders\\ClosestHit.hlsl", L"", L"lib_6_3"));
+		dxr.hit.chs = RtProgram(D3D12ShaderInfo(L"Shaders\\ClosestHit.hlsl", L"", L"lib_6_3"));
 		D3DShaders::Compile_Shader(shaderCompiler, dxr.hit.chs);
 	}
 
@@ -1248,7 +1248,7 @@ namespace DXR
 		vertexSRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
 		vertexSRVDesc.Buffer.StructureByteStride = 0;
 		vertexSRVDesc.Buffer.FirstElement = 0;
-		vertexSRVDesc.Buffer.NumElements = (static_cast<UINT>(model.Vertices.size()) * sizeof(Vector3f)) / sizeof(float);
+		vertexSRVDesc.Buffer.NumElements = (static_cast<UINT>(model.Verts.size()) * sizeof(Vertex)) / sizeof(float);
 		vertexSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
 		handle.ptr += handleIncrement;

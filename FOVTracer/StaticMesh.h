@@ -12,6 +12,12 @@ struct Material
 	float  TextureResolution = 512;
 };
 
+struct Vertex
+{
+	Vector3f Position;
+	Vector2f Texcoord;
+};
+
 class StaticMesh
 {
 public:
@@ -32,6 +38,8 @@ public:
 	uint32_t NumVertices;
 
 	void Clear();
+
+	std::vector<Vertex> Verts;
 
 	std::vector<Vector3f> Vertices;
 	std::vector<Vector3f> Normals;
