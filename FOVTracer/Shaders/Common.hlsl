@@ -32,6 +32,11 @@ struct HitInfo
 	float4 ShadedColorAndHitT;
 };
 
+struct ShadowHitInfo
+{
+	bool isHit;
+};
+
 struct Attributes 
 {
 	float2 uv;

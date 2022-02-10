@@ -422,7 +422,7 @@ namespace D3DResources
 	{
 		// Load the texture
 		TextureInfo texture = Utils::LoadTexture(material.TexturePath);
-		material.TextureResolution = static_cast<float>(texture.width);
+		material.TextureResolution = Vector2f(static_cast<float>(texture.width), static_cast<float>(texture.height));
 
 		// Describe the texture
 		D3D12_RESOURCE_DESC textureDesc = {};
@@ -627,7 +627,7 @@ namespace D3DResources
 		resources.materialCB->SetName(L"Material Constant Buffer");
 #endif
 
-		resources.materialCBData.resolution = DirectX::XMFLOAT4(material.TextureResolution, 0.f, 0.f, 0.f);
+		resources.materialCBData.resolution = DirectX::XMFLOAT4(material.TextureResolution.X, material.TextureResolution.Y, 0.f, 0.f);
 
 		HRESULT hr = resources.materialCB->Map(0, nullptr, reinterpret_cast<void**>(&resources.materialCBStart));
 		Utils::Validate(hr, L"Error: failed to map Material constant buffer!");
@@ -666,28 +666,17 @@ namespace D3DResources
 		DirectX::XMFLOAT3 eye, focus, up;
 		float aspect, fov;
 
-		resources.eyeAngle.x += rotationSpeed;
+		//resources.eyeAngle.x = 180;
 
-#if _DEBUG
-		float x = 2.f * cosf(resources.eyeAngle.x);
-		float y = 0.f;
-		float z = 2.25f + 2.f * sinf(resources.eyeAngle.x);
-
-		focus = DirectX::XMFLOAT3(0.f, 0.f, 0.f);
-#else
-		float x = 8.f * cosf(resources.eyeAngle.x);
-		float y = 1.5f + 1.5f * cosf(resources.eyeAngle.x);
-		float z = 8.f + 2.25f * sinf(resources.eyeAngle.x);
-		focus = XMFLOAT3(0.f, 1.75f, 0.f);
-#endif
-
-		eye = DirectX::XMFLOAT3(x, y, z);
+		eye = DirectX::XMFLOAT3(0, 1, -3);
 		up = DirectX::XMFLOAT3(0.f, 1.f, 0.f);
 
 		aspect = (float)d3d.Width / (float)d3d.Height;
-		fov = 65.f * (DirectX::XM_PI / 180.f);							// convert to radians
+		fov = 75.f * (DirectX::XM_PI / 180.f);							// convert to radians
 
-		resources.rotationOffset += rotationSpeed;
+		//resources.rotationOffset += rotationSpeed;
+
+		focus = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
 
 		view = DirectX::XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&focus), XMLoadFloat3(&up));
 		invView = XMMatrixInverse(NULL, view);
@@ -930,6 +919,16 @@ namespace DXR
 		// Load and compile the miss shader
 		dxr.miss = RtProgram(D3D12ShaderInfo(L"Shaders\\Miss.hlsl", L"", L"lib_6_3"));
 		D3DShaders::Compile_Shader(shaderCompiler, dxr.miss);
+	}	
+
+	/**
+	* Load and create the DXR Shadow Miss program and root signature.
+	*/
+	void Create_Shadow_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler)
+	{
+		// Load and compile the shadow miss shader
+		dxr.shadow_miss = RtProgram(D3D12ShaderInfo(L"Shaders\\ShadowMiss.hlsl", L"", L"lib_6_3"));
+		D3DShaders::Compile_Shader(shaderCompiler, dxr.shadow_miss);
 	}
 
 	/**
@@ -944,22 +943,96 @@ namespace DXR
 	}
 
 	/**
+	* Load and create the DXR Shadow Hit program and root signature.
+	*/
+	void Create_Shadow_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler)
+	{
+		// Load and compile the Shadow Hit shader
+		dxr.shadow_hit = HitProgram(L"ShadowHit");
+		dxr.shadow_hit.chs = RtProgram(D3D12ShaderInfo(L"Shaders\\ShadowHit.hlsl", L"", L"lib_6_3"));
+		D3DShaders::Compile_Shader(shaderCompiler, dxr.shadow_hit.chs);
+	}
+
+	/**
 	* Create the DXR pipeline state object.
 	*/
 	void Create_Pipeline_State_Object(D3D12Global& d3d, DXRGlobal& dxr)
 	{
-		// Need 10 subobjects:
-		// 1 for RGS program
-		// 1 for Miss program
-		// 1 for CHS program
-		// 1 for Hit Group
-		// 2 for RayGen Root Signature (root-signature and association)
-		// 2 for Shader Config (config and association)
-		// 1 for Global Root Signature
-		// 1 for Pipeline Config	
 		UINT index = 0;
 		std::vector<D3D12_STATE_SUBOBJECT> subobjects;
-		subobjects.resize(10);
+		subobjects.resize(13);
+
+		// Add state subobject for the Shadow Miss shader
+		D3D12_EXPORT_DESC smsExportDesc = {};
+		smsExportDesc.Name = L"Shadow_Miss_5";
+		smsExportDesc.ExportToRename = L"ShadowMiss";
+		smsExportDesc.Flags = D3D12_EXPORT_FLAG_NONE;
+
+		D3D12_DXIL_LIBRARY_DESC	smsLibDesc = {};
+		smsLibDesc.DXILLibrary.BytecodeLength = dxr.shadow_miss.blob->GetBufferSize();
+		smsLibDesc.DXILLibrary.pShaderBytecode = dxr.shadow_miss.blob->GetBufferPointer();
+		smsLibDesc.NumExports = 1;
+		smsLibDesc.pExports = &smsExportDesc;
+
+		D3D12_STATE_SUBOBJECT sms = {};
+		sms.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
+		sms.pDesc = &smsLibDesc;
+
+		subobjects[index++] = sms;
+
+		// Add state subobject for the Closest Hit shader
+		D3D12_EXPORT_DESC shsExportDesc = {};
+		shsExportDesc.Name = L"ShadowHit_76";
+		shsExportDesc.ExportToRename = L"ShadowHit";
+		shsExportDesc.Flags = D3D12_EXPORT_FLAG_NONE;
+
+		D3D12_DXIL_LIBRARY_DESC	shsLibDesc = {};
+		shsLibDesc.DXILLibrary.BytecodeLength = dxr.shadow_hit.chs.blob->GetBufferSize();
+		shsLibDesc.DXILLibrary.pShaderBytecode = dxr.shadow_hit.chs.blob->GetBufferPointer();
+		shsLibDesc.NumExports = 1;
+		shsLibDesc.pExports = &shsExportDesc;
+
+		D3D12_STATE_SUBOBJECT shs = {};
+		shs.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
+		shs.pDesc = &shsLibDesc;
+
+		subobjects[index++] = shs;
+
+		// Add a state subobject for the hit group
+		D3D12_HIT_GROUP_DESC shadowHitGroupDesc = {};
+		shadowHitGroupDesc.ClosestHitShaderImport = L"ShadowHit_76";
+		shadowHitGroupDesc.HitGroupExport = L"ShadowHitGroup";
+
+		D3D12_STATE_SUBOBJECT shadowHitGroup = {};
+		shadowHitGroup.Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
+		shadowHitGroup.pDesc = &shadowHitGroupDesc;
+
+		subobjects[index++] = shadowHitGroup;
+
+		//// Add a state subobject for the shadow shader payload configuration
+		//D3D12_RAYTRACING_SHADER_CONFIG shadowShaderDesc = {};
+		//shadowShaderDesc.MaxPayloadSizeInBytes = sizeof(bool); //Hit or not
+		//shadowShaderDesc.MaxAttributeSizeInBytes = D3D12_RAYTRACING_MAX_ATTRIBUTE_SIZE_IN_BYTES;
+
+		//D3D12_STATE_SUBOBJECT shadowShaderConfigObject = {};
+		//shadowShaderConfigObject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
+		//shadowShaderConfigObject.pDesc = &shadowShaderDesc;
+
+		//subobjects[index++] = shadowShaderConfigObject;
+
+		//const WCHAR* shadowShaderExports[] = { L"Shadow_Miss_5", L"ShadowHitGroup" };
+
+		//// Add a state subobject for the association between shaders and the payload
+		//D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION shadowShaderPayloadAssociation = {};
+		//shadowShaderPayloadAssociation.NumExports = _countof(shadowShaderExports);
+		//shadowShaderPayloadAssociation.pExports = shadowShaderExports;
+		//shadowShaderPayloadAssociation.pSubobjectToAssociate = &subobjects[(index - 1)];
+
+		//D3D12_STATE_SUBOBJECT shadowShaderPayloadAssociationObject = {};
+		//shadowShaderPayloadAssociationObject.Type = D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION;
+		//shadowShaderPayloadAssociationObject.pDesc = &shadowShaderPayloadAssociation;
+
+		//subobjects[index++] = shadowShaderPayloadAssociationObject;
 
 		// Add state subobject for the RGS
 		D3D12_EXPORT_DESC rgsExportDesc = {};
@@ -1028,7 +1101,7 @@ namespace DXR
 
 		// Add a state subobject for the shader payload configuration
 		D3D12_RAYTRACING_SHADER_CONFIG shaderDesc = {};
-		shaderDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT4);	// RGB and HitT
+		shaderDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT4); // RGB and HitT
 		shaderDesc.MaxAttributeSizeInBytes = D3D12_RAYTRACING_MAX_ATTRIBUTE_SIZE_IN_BYTES;
 
 		D3D12_STATE_SUBOBJECT shaderConfigObject = {};
@@ -1038,7 +1111,7 @@ namespace DXR
 		subobjects[index++] = shaderConfigObject;
 
 		// Create a list of the shader export names that use the payload
-		const WCHAR* shaderExports[] = { L"RayGen_12", L"Miss_5", L"HitGroup" };
+		const WCHAR* shaderExports[] = { L"RayGen_12", L"Miss_5", L"HitGroup", L"Shadow_Miss_5",  L"ShadowHitGroup"};
 
 		// Add a state subobject for the association between shaders and the payload
 		D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION shaderPayloadAssociation = {};
@@ -1060,7 +1133,7 @@ namespace DXR
 		subobjects[index++] = rayGenRootSigObject;
 
 		// Create a list of the shader export names that use the root signature
-		const WCHAR* rootSigExports[] = { L"RayGen_12", L"HitGroup", L"Miss_5" };
+		const WCHAR* rootSigExports[] = { L"RayGen_12", L"HitGroup", L"Miss_5", L"Shadow_Miss_5", L"ShadowHitGroup"};
 
 		// Add a state subobject for the association between the RayGen shader and the local root signature
 		D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION rayGenShaderRootSigAssociation = {};
@@ -1082,7 +1155,7 @@ namespace DXR
 
 		// Add a state subobject for the ray tracing pipeline config
 		D3D12_RAYTRACING_PIPELINE_CONFIG pipelineConfig = {};
-		pipelineConfig.MaxTraceRecursionDepth = 1;
+		pipelineConfig.MaxTraceRecursionDepth = 3;
 
 		D3D12_STATE_SUBOBJECT pipelineConfigObject = {};
 		pipelineConfigObject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;
@@ -1161,6 +1234,14 @@ namespace DXR
 		// Shader Record 2 - Closest Hit program and local root parameter data (descriptor table with constant buffer and IB/VB pointers)
 		pData += dxr.shaderTableRecordSize;
 		memcpy(pData, dxr.rtpsoInfo->GetShaderIdentifier(L"HitGroup"), shaderIdSize);
+
+		//// Shader Record 3 - Shadow Hit program (no local root arguments to set)
+		//pData += dxr.shaderTableRecordSize;
+		//memcpy(pData, dxr.rtpsoInfo->GetShaderIdentifier(L"ShadowHit"), shaderIdSize);
+
+		//// Shader Record 4 - Shadow Miss program (no local root arguments to set)
+		//pData += dxr.shaderTableRecordSize;
+		//memcpy(pData, dxr.rtpsoInfo->GetShaderIdentifier(L"ShadowMiss"), shaderIdSize);
 
 		// Set the root parameter data. Point to start of descriptor heap.
 		*reinterpret_cast<D3D12_GPU_DESCRIPTOR_HANDLE*>(pData + shaderIdSize) = resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();

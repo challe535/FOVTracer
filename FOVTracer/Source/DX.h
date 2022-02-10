@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-#define DXR_ENABLED 0
+#define DXR_ENABLED 1
 #define NAME_D3D_RESOURCES 1
 
 
@@ -257,7 +257,10 @@ struct DXRGlobal
 
 	RtProgram										rgs;
 	RtProgram										miss;
+	RtProgram										shadow_miss;
+
 	HitProgram										hit;
+	HitProgram										shadow_hit;
 
 	ID3D12StateObject* rtpso = nullptr;
 	ID3D12StateObjectProperties* rtpsoInfo = nullptr;
@@ -322,6 +325,8 @@ namespace DXR
 	void Create_Shader_Table(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources);
 	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, const StaticMesh& model);
 	void Create_DXR_Output(D3D12Global& d3d, D3D12Resources& resources);
+	void Create_Shadow_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
+	void Create_Shadow_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 
 	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources);
 

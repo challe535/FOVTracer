@@ -30,7 +30,7 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 	Log::Init();
 
 	SceneObject TestObject;
-	TestObject.LoadFromPath(Utils::GetResourcePath("models/quad.obj"));
+	TestObject.LoadFromPath(Utils::GetResourcePath("models/bunny.obj"));
 	RayScene.AddSceneObject(TestObject);
 	
 	CORE_INFO("{0} objects in scene.", RayScene.GetNumSceneObjects());

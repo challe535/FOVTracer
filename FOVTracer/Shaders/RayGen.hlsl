@@ -54,7 +54,7 @@ void RayGen()
 		RAY_FLAG_NONE,
 		0xFF,
 		0,
-		0,
+		2,
 		0,
 		ray,
 		payload);

@@ -59,33 +59,29 @@ namespace Utils
 				{
 					Vertex Vtx;
 
-					for (j = 0; j < pMesh->mNumVertices; j++)
-					{
-
-						aiVector3D Vec = pMesh->mVertices[j];
-						Vector3f VertPos(Vec.x, Vec.y, Vec.z);
-						Vtx.Position = VertPos;
+					aiVector3D Vec = pMesh->mVertices[j];
+					Vector3f VertPos(Vec.x, Vec.y, Vec.z);
+					Vtx.Position = VertPos;
 						
-						//Texture coords. Only single channel.
-						if (pMesh->HasTextureCoords(0))
-						{
-							SMesh.HasTexcoords = true;
+					//Texture coords. Only single channel.
+					if (pMesh->HasTextureCoords(0))
+					{
+						SMesh.HasTexcoords = true;
 
-							aiVector3D Vec = pMesh->mTextureCoords[0][j];
-							Vector2f Texcoord(Vec.x, Vec.y);
-							Vtx.Texcoord = Texcoord;
-						}
+						aiVector3D Vec = pMesh->mTextureCoords[0][j];
+						Vector2f Texcoord(Vec.x, Vec.y);
+						Vtx.Texcoord = Texcoord;
+					}
 
-						//Vertex normals.
-						if (pMesh->HasNormals())
-						{
-							SMesh.HasNormals = true;
+					//Vertex normals.
+					if (pMesh->HasNormals())
+					{
+						SMesh.HasNormals = true;
 
-							aiVector3D Vec = pMesh->mNormals[j];
-							Vector3f Normal(Vec.x, Vec.y, Vec.z);
-							//TODO
-							//Add normal to Vertex here
-						}
+						aiVector3D Vec = pMesh->mNormals[j];
+						Vector3f Normal(Vec.x, Vec.y, Vec.z);
+						//TODO
+						//Add normal to Vertex here
 					}
 
 					SMesh.Vertices.push_back(Vtx);
@@ -121,7 +117,7 @@ namespace Utils
 					Mat.Name = pMat->GetName().C_Str();
 
 					//TODO: Make more flexible when needed later
-					Mat.TexturePath = std::string(PATH_TO_RESOURCES).append("textures/statue.jpg");
+					Mat.TexturePath = std::string(PATH_TO_RESOURCES).append("textures/fur.jpg");
 
 					SMesh.MeshMaterial = Mat;
 				}

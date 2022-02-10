@@ -32,12 +32,39 @@
 [shader("closesthit")]
 void ClosestHit(inout HitInfo payload, Attributes attrib)
 {
+	const float3 lightPos = float3(0, -10, 0);
+
+	float3 worldOrigin = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
+	float3 lightDir = normalize(lightPos - worldOrigin);
+
+	RayDesc ray; 
+	ray.Origin = worldOrigin; 
+	ray.Direction = lightDir; 
+	ray.TMin = 0.01;
+	ray.TMax = 100000; 
+	bool hit = true;
+
+	ShadowHitInfo shadowPayload;
+	shadowPayload.isHit = false;
+
+	TraceRay( 
+		SceneBVH, 
+		RAY_FLAG_NONE, 
+		0xFF, 
+		1, 
+		2, 
+		0, 
+		ray, 
+		shadowPayload
+	); 
+	float factor = shadowPayload.isHit ? 0.0 : 1.0; 
+
 	uint triangleIndex = PrimitiveIndex();
 	float3 barycentrics = float3((1.0f - attrib.uv.x - attrib.uv.y), attrib.uv.x, attrib.uv.y);
 	VertexAttributes vertex = GetVertexAttributes(triangleIndex, barycentrics);
 
-	int2 coord = floor(vertex.uv * textureResolution.x);
-	float3 color = albedo.Load(int3(coord, 0)).rgb;
+	int2 coord = floor(vertex.uv * textureResolution.xy);
+	float3 color = factor * albedo.Load(int3(coord, 0)).rgb;
 
 	payload.ShadedColorAndHitT = float4(color, RayTCurrent());
 }

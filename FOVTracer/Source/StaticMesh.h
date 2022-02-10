@@ -9,7 +9,7 @@ struct Material
 {
 	std::string Name = "DefaultMaterial";
 	std::string TexturePath = "";
-	float  TextureResolution = 512;
+	Vector2f  TextureResolution = Vector2f(512, 512);
 };
 
 struct Vertex
