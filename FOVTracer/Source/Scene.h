@@ -11,6 +11,8 @@ public:
 	void AddSceneObject(const SceneObject& SObject);
 	uint32_t GetNumSceneObjects();
 
+	void LoadFromPath(std::string Path);
+
 	void Clear();
 
 	std::vector<SceneObject> SceneObjects;

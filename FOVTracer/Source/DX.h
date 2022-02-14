@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ResourceManagement.h"
-#include "StaticMesh.h"
+#include "Scene.h"
 
 #include <DirectXMath.h>
 #include <DirectXPackedVector.h>
@@ -123,28 +123,48 @@ struct D3D12BufferCreateInfo
 	}
 };
 
+struct SceneObjectResource
+{
+	ID3D12Resource* vertexBuffer = nullptr;
+	D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+	ID3D12Resource* indexBuffer = nullptr;
+	D3D12_INDEX_BUFFER_VIEW	indexBufferView;
+
+	ID3D12Resource* materialCB = nullptr;
+	MaterialCB materialCBData;
+	UINT8* materialCBStart = nullptr;
+
+	ID3D12Resource* texture = nullptr;
+	ID3D12Resource* textureUploadResource = nullptr;
+
+	ID3D12DescriptorHeap* descriptorHeap = nullptr;
+};
+
 struct D3D12Resources
 {
 	ID3D12Resource* DXROutput;
 
-	ID3D12Resource* vertexBuffer = nullptr;
-	D3D12_VERTEX_BUFFER_VIEW						vertexBufferView;
-	ID3D12Resource* indexBuffer = nullptr;
-	D3D12_INDEX_BUFFER_VIEW							indexBufferView;
+	//ID3D12Resource* vertexBuffer = nullptr;
+	//D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+	//ID3D12Resource* indexBuffer = nullptr;
+	//D3D12_INDEX_BUFFER_VIEW	indexBufferView;
+
+	std::vector<SceneObjectResource> sceneObjResources;
+	//std::vector<TextureResource> textures;
 
 	ID3D12Resource* viewCB = nullptr;
-	ViewCB											viewCBData;
+	ViewCB viewCBData;
 	UINT8* viewCBStart = nullptr;
 
-	ID3D12Resource* materialCB = nullptr;
-	MaterialCB										materialCBData;
-	UINT8* materialCBStart = nullptr;
+	//ID3D12Resource* materialCB = nullptr;
+	//MaterialCB materialCBData;
+	//UINT8* materialCBStart = nullptr;
 
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
-	ID3D12DescriptorHeap* descriptorHeap = nullptr;
+	//ID3D12DescriptorHeap* descriptorHeap = nullptr;
 
-	ID3D12Resource* texture = nullptr;
-	ID3D12Resource* textureUploadResource = nullptr;
+	//ID3D12Resource* texture = nullptr;
+	//ID3D12Resource* textureUploadResource = nullptr;
 
 	UINT											rtvDescSize = 0;
 
@@ -249,7 +269,7 @@ struct HitProgram
 struct DXRGlobal
 {
 	AccelerationStructureBuffer						TLAS;
-	AccelerationStructureBuffer						BLAS;
+	std::vector<AccelerationStructureBuffer>		BLASs;
 	uint64_t										tlasSize;
 
 	ID3D12Resource* shaderTable = nullptr;
@@ -298,13 +318,13 @@ namespace D3D12
 namespace D3DResources
 {
 	void Create_Buffer(D3D12Global& d3d, D3D12BufferCreateInfo& info, ID3D12Resource** ppResource);
-	void Create_Texture(D3D12Global& d3d, D3D12Resources& resources, Material& material);
-	void Create_Vertex_Buffer(D3D12Global& d3d, D3D12Resources& resources, StaticMesh& model);
-	void Create_Index_Buffer(D3D12Global& d3d, D3D12Resources& resources, StaticMesh& model);
+	void Create_Texture(D3D12Global& d3d, D3D12Resources& resources, Material& material, uint32_t index);
+	void Create_Vertex_Buffer(D3D12Global& d3d, D3D12Resources& resources, const SceneObject& sceneObj, uint32_t index);
+	void Create_Index_Buffer(D3D12Global& d3d, D3D12Resources& resources, const SceneObject& sceneObj, uint32_t index);
 	void Create_Constant_Buffer(D3D12Global& d3d, ID3D12Resource** buffer, UINT64 size);
 	void Create_BackBuffer_RTV(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_View_CB(D3D12Global& d3d, D3D12Resources& resources);
-	void Create_Material_CB(D3D12Global& d3d, D3D12Resources& resources, const Material& material);
+	void Create_Material_CB(D3D12Global& d3d, D3D12Resources& resources, const Material& material, uint32_t index);
 	void Create_Descriptor_Heaps(D3D12Global& d3d, D3D12Resources& resources);
 
 	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources);
@@ -316,14 +336,14 @@ namespace D3DResources
 
 namespace DXR
 {
-	void Create_Bottom_Level_AS(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, StaticMesh& model);
+	void Create_Bottom_Level_AS(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, Scene& model);
 	void Create_Top_Level_AS(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources);
 	void Create_RayGen_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Create_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Create_Closest_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Create_Pipeline_State_Object(D3D12Global& d3d, DXRGlobal& dxr);
 	void Create_Shader_Table(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources);
-	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, const StaticMesh& model);
+	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, Scene& scene);
 	void Create_DXR_Output(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Shadow_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Create_Shadow_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);

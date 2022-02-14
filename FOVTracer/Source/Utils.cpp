@@ -23,12 +23,15 @@ namespace Utils
 	}
 
 	//TODO: Make recursively process nodes if needed by important scenes later.
-	bool LoadStaticMeshes(const std::string& Filepath, std::vector<StaticMesh>& SMeshVector)
+	bool LoadStaticMeshes(const std::string& Filepath, std::vector<StaticMesh>& SMeshVector, bool GenVertexNormals)
 	{
 		bool LoadSucceeded = true;
 
-		uint32_t LoadFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_MakeLeftHanded |
-			aiProcess_FlipUVs | aiProcess_FlipWindingOrder;
+		uint32_t LoadFlags = aiProcess_Triangulate | aiProcess_MakeLeftHanded |
+			aiProcess_FlipUVs | aiProcess_FlipWindingOrder | aiProcess_SortByPType | aiProcess_CalcTangentSpace;
+
+		if (GenVertexNormals)
+			LoadFlags |= aiProcess_GenSmoothNormals;
 
 		Assimp::Importer Importer;
 		const aiScene* pScene = Importer.ReadFile(Filepath.c_str(), LoadFlags);
@@ -80,8 +83,7 @@ namespace Utils
 
 						aiVector3D Vec = pMesh->mNormals[j];
 						Vector3f Normal(Vec.x, Vec.y, Vec.z);
-						//TODO
-						//Add normal to Vertex here
+						Vtx.Normal = Normal;
 					}
 
 					SMesh.Vertices.push_back(Vtx);
@@ -109,6 +111,10 @@ namespace Utils
 				//Set material. Currently single material with texture only.
 				if (pScene->HasMaterials())
 				{
+
+					auto const end_of_basedir = Filepath.rfind("/");
+					auto const parent_folder = (end_of_basedir != std::string::npos ? Filepath.substr(0, end_of_basedir) : ".") + "/";
+
 					SMesh.HasMaterial = true;
 
 					aiMaterial* pMat = pScene->mMaterials[pMesh->mMaterialIndex];
@@ -116,8 +122,11 @@ namespace Utils
 
 					Mat.Name = pMat->GetName().C_Str();
 
+					aiString path;
+					pMat->GetTexture(aiTextureType_DIFFUSE, 0, &path);
+
 					//TODO: Make more flexible when needed later
-					Mat.TexturePath = std::string(PATH_TO_RESOURCES).append("textures/fur.jpg");
+					Mat.TexturePath = parent_folder + std::string(path.C_Str());
 
 					SMesh.MeshMaterial = Mat;
 				}

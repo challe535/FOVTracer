@@ -7,15 +7,17 @@
 class SceneObject
 {
 public:
-	~SceneObject();
 
 	Transform Transform;
+	StaticMesh Mesh;
 
-	bool LoadFromPath(const std::string& Path);
+	~SceneObject();
+
+
+	bool LoadFromPath(const std::string& Path, bool GenNormals);
 
 	void Clear();
-
-	std::vector<StaticMesh> StaticMeshes;
+	//StaticMesh SingleMeshRepresentation;
 private:
 };
 

@@ -21,17 +21,20 @@ void Tracer::Init(TracerConfigInfo config, HWND& window, Scene scene)
 
 	D3DResources::Create_Descriptor_Heaps(D3D, Resources);
 	D3DResources::Create_BackBuffer_RTV(D3D, Resources);
-	D3DResources::Create_Vertex_Buffer(D3D, Resources, scene.SceneObjects[0].StaticMeshes[0]);
-	D3DResources::Create_Index_Buffer(D3D, Resources, scene.SceneObjects[0].StaticMeshes[0]);
-	D3DResources::Create_Texture(D3D, Resources, scene.SceneObjects[0].StaticMeshes[0].MeshMaterial);
+	/*D3DResources::Create_Vertex_Buffer(D3D, Resources, scene.SceneObjects[0].SingleMeshRepresentation);
+	D3DResources::Create_Index_Buffer(D3D, Resources, scene.SceneObjects[0].SingleMeshRepresentation);
+	D3DResources::Create_Texture(D3D, Resources, scene.SceneObjects[0].StaticMeshes[0].MeshMaterial);*/
 	D3DResources::Create_View_CB(D3D, Resources);
-	D3DResources::Create_Material_CB(D3D, Resources, scene.SceneObjects[0].StaticMeshes[0].MeshMaterial);
+	//D3DResources::Create_Material_CB(D3D, Resources, scene.SceneObjects[0].StaticMeshes[0].MeshMaterial);
+
+	for (int i = 0; i < scene.SceneObjects.size(); i++)
+		AddObject(scene.SceneObjects[i], i);
 
 	// Create DXR specific resources
-	DXR::Create_Bottom_Level_AS(D3D, DXR, Resources, scene.SceneObjects[0].StaticMeshes[0]);
+	DXR::Create_Bottom_Level_AS(D3D, DXR, Resources, scene);
 	DXR::Create_Top_Level_AS(D3D, DXR, Resources);
 	DXR::Create_DXR_Output(D3D, Resources);
-	DXR::Create_Descriptor_Heaps(D3D, DXR, Resources, scene.SceneObjects[0].StaticMeshes[0]);
+	DXR::Create_Descriptor_Heaps(D3D, DXR, Resources, scene);
 	DXR::Create_RayGen_Program(D3D, DXR, ShaderCompiler);
 	DXR::Create_Miss_Program(D3D, DXR, ShaderCompiler);
 	DXR::Create_Closest_Hit_Program(D3D, DXR, ShaderCompiler);
@@ -55,6 +58,7 @@ void Tracer::Update()
 {
 #if DXR_ENABLED
 	D3DResources::Update_View_CB(D3D, Resources);
+	
 #endif
 }
 
@@ -79,4 +83,16 @@ void Tracer::Cleanup()
 	D3DShaders::Destroy(ShaderCompiler);
 	D3D12::Destroy(D3D);
 #endif
+}
+
+void Tracer::AddObject(SceneObject& SceneObj, uint32_t Index)
+{
+	Resources.sceneObjResources.emplace_back();
+	DXR.BLASs.emplace_back();
+
+	D3DResources::Create_Vertex_Buffer(D3D, Resources, SceneObj, Index);
+	D3DResources::Create_Index_Buffer(D3D, Resources, SceneObj, Index);
+
+	D3DResources::Create_Texture(D3D, Resources, SceneObj.Mesh.MeshMaterial, Index);
+	D3DResources::Create_Material_CB(D3D, Resources, SceneObj.Mesh.MeshMaterial, Index);
 }

@@ -43,7 +43,7 @@ void RayGen()
 	ray.Origin = viewOriginAndTanHalfFovY.xyz;
 	ray.Direction = normalize((d.x * view[0].xyz * viewOriginAndTanHalfFovY.w * aspectRatio) - (d.y * view[1].xyz * viewOriginAndTanHalfFovY.w) + view[2].xyz);
 	ray.TMin = 0.1f;
-	ray.TMax = 1000.f;	
+	ray.TMax = 100000.f;	
 
 	// Trace the ray
 	HitInfo payload;
@@ -53,9 +53,9 @@ void RayGen()
 		SceneBVH,
 		RAY_FLAG_NONE,
 		0xFF,
-		0,
-		2,
-		0,
+		1,
+		1,
+		1,
 		ray,
 		payload);
 

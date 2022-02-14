@@ -16,7 +16,7 @@ struct Vertex
 {
 	Vector3f Position;
 	Vector2f Texcoord;
-	//Normals later
+	Vector3f Normal;
 };
 
 class StaticMesh

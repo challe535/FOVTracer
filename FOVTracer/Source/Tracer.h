@@ -28,4 +28,6 @@ protected:
 	D3D12Global D3D = {};
 	D3D12Resources Resources = {};
 	D3D12ShaderCompilerInfo ShaderCompiler;
+
+	void AddObject(SceneObject& SceneObj, uint32_t Index);
 };

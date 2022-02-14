@@ -24,7 +24,7 @@ namespace Utils
 	/**
 	* Loads meshes from filepath into SMeshVector.
 	*/
-	bool LoadStaticMeshes(const std::string& Filepath, std::vector<StaticMesh>& SMeshVector);
+	bool LoadStaticMeshes(const std::string& Filepath, std::vector<StaticMesh>& SMeshVector, bool GenVertexNormals);
 
 	/**
 	* Loads a texture with stb_image and returns its data.
