@@ -676,7 +676,7 @@ namespace D3DResources
 
 		//resources.eyeAngle.x = 180;
 
-		eye = DirectX::XMFLOAT3(0, 100, -3);
+		eye = DirectX::XMFLOAT3(0, 1, -3);
 		up = DirectX::XMFLOAT3(0.f, 1.f, 0.f);
 
 		aspect = (float)d3d.Width / (float)d3d.Height;
@@ -836,7 +836,7 @@ namespace DXR
 		// Copy the instance data to the buffer
 		UINT8* pData;
 		dxr.TLAS.pInstanceDesc->Map(0, nullptr, (void**)&pData);
-		memcpy(pData, &instances, instances.size() * sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
+		memcpy(pData, instances.data(), instances.size() * sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
 		dxr.TLAS.pInstanceDesc->Unmap(0, nullptr);
 
 		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS buildFlags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
