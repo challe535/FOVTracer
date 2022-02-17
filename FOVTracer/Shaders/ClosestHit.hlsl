@@ -29,6 +29,38 @@
 
 // ---[ Closest Hit Shader ]---
 
+bool IsShadowed(float3 lightDir, float3 origin)
+{
+    RayDesc ray;
+    ray.Origin = origin;
+    ray.Direction = lightDir;
+    ray.TMin = 0.01;
+    ray.TMax = 100000;
+    bool hit = true;
+
+    ShadowHitInfo shadowPayload;
+    shadowPayload.isHit = false;
+
+    TraceRay(
+		SceneBVH,
+		RAY_FLAG_NONE,
+		0xFF,
+		0,
+		0,
+		0,
+		ray,
+		shadowPayload
+	);
+
+    return shadowPayload.isHit;
+}
+
+float3 CalcMappedNormal(VertexAttributes vertex, int2 coord)
+{
+    float3 mapping = (normals.Load(int3(coord, 0)).rgb - 0.5) * 2;
+    return mapping.x * vertex.tangent + mapping.y * vertex.binormal + mapping.z * vertex.normal;
+}
+
 [shader("closesthit")]
 void ClosestHit(inout HitInfo payload, Attributes attrib)
 {
@@ -36,37 +68,31 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
 	float3 barycentrics = float3((1.0f - attrib.uv.x - attrib.uv.y), attrib.uv.x, attrib.uv.y);
 	VertexAttributes vertex = GetVertexAttributes(triangleIndex, barycentrics);
 
-	const float3 lightPos = float3(0, 10, 0);
+	const float3 lightPos = float3(0, 1000, 0);
 
-	float3 worldOrigin = WorldRayOrigin() + RayTCurrent() * WorldRayDirection() + vertex.normal * 0.001f;
-	float3 lightDir = normalize(lightPos - worldOrigin);
+    int2 coord = floor(frac(vertex.uv) * textureResolution.xy);
+  
+	float3 diffuse = float3(1, 1, 0);
+    if (hasDiffuseTexture)
+    {
+        diffuse = albedo.Load(int3(coord, 0)).rgb;
+    }
 
-	RayDesc ray; 
-	ray.Origin = worldOrigin; 
-	ray.Direction = lightDir; 
-	ray.TMin = 0.01;
-	ray.TMax = 100000; 
-	bool hit = true;
+    float3 newnormal = float3(0, 0, 0);
+    if (hasNormalMap)
+    {
+        newnormal = CalcMappedNormal(vertex, coord);
+    }
 
-	ShadowHitInfo shadowPayload;
-	shadowPayload.isHit = false;
+    float3 worldOrigin = WorldRayOrigin() + RayTCurrent() * WorldRayDirection() + vertex.normal * 0.001f;
+    float3 lightDir = normalize(lightPos - worldOrigin);
 
-	//TraceRay( 
-	//	SceneBVH, 
-	//	RAY_FLAG_NONE, 
-	//	0xFF, 
-	//	0, 
-	//	0, 
-	//	0, 
-	//	ray, 
-	//	shadowPayload
-	//); 
-	float factor = shadowPayload.isHit ? 0.3 : 1.0; 
+    float factor = IsShadowed(lightDir, worldOrigin) ? 0.3 : 1.0;
 
-	int2 coord = floor(vertex.uv * textureResolution.xy);
-	float3 color = factor * albedo.Load(int3(coord, 0)).rgb * max(dot(lightDir, vertex.normal), 0.0);
+    float3 color = factor * diffuse * max(dot(lightDir, vertex.normal), 0.0);
 
-	payload.ShadedColorAndHitT = float4(color, RayTCurrent());
-
-	//payload.ShadedColorAndHitT = float4(RayTCurrent(), RayTCurrent(), RayTCurrent(), RayTCurrent()) / 10.f;
+    //payload.ShadedColorAndHitT = float4(color, RayTCurrent());
+	//payload.ShadedColorAndHitT = float4(vertex.uv, 0, RayTCurrent());
+    payload.ShadedColorAndHitT = float4(newnormal, RayTCurrent());
+	// payload.ShadedColorAndHitT = float4(RayTCurrent(), RayTCurrent(), RayTCurrent(),RayTCurrent())/1000;
 }

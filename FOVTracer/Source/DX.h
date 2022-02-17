@@ -16,10 +16,16 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #define DXR_ENABLED 1
 #define NAME_D3D_RESOURCES 1
 
+
+namespace DX12Constants
+{
+	constexpr uint32_t descriptors_per_shader = 8;
+}
 
 static const D3D12_HEAP_PROPERTIES UploadHeapProperties =
 {
@@ -49,6 +55,8 @@ struct TextureInfo
 struct MaterialCB
 {
 	DirectX::XMFLOAT4 resolution;
+	bool hasDiffuse;
+	bool hasNormal;
 };
 
 struct ViewCB
@@ -123,6 +131,12 @@ struct D3D12BufferCreateInfo
 	}
 };
 
+struct TextureResource
+{
+	ID3D12Resource* texture = nullptr;
+	ID3D12Resource* textureUploadResource = nullptr;
+};
+
 struct SceneObjectResource
 {
 	ID3D12Resource* vertexBuffer = nullptr;
@@ -134,37 +148,23 @@ struct SceneObjectResource
 	MaterialCB materialCBData;
 	UINT8* materialCBStart = nullptr;
 
-	ID3D12Resource* texture = nullptr;
-	ID3D12Resource* textureUploadResource = nullptr;
-
-	ID3D12DescriptorHeap* descriptorHeap = nullptr;
+	TextureResource diffuseTex;
+	TextureResource normalTex;
 };
 
 struct D3D12Resources
 {
 	ID3D12Resource* DXROutput;
 
-	//ID3D12Resource* vertexBuffer = nullptr;
-	//D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
-	//ID3D12Resource* indexBuffer = nullptr;
-	//D3D12_INDEX_BUFFER_VIEW	indexBufferView;
-
 	std::vector<SceneObjectResource> sceneObjResources;
-	//std::vector<TextureResource> textures;
+	std::unordered_map<std::string, TextureInfo> Textures;
 
 	ID3D12Resource* viewCB = nullptr;
 	ViewCB viewCBData;
 	UINT8* viewCBStart = nullptr;
 
-	//ID3D12Resource* materialCB = nullptr;
-	//MaterialCB materialCBData;
-	//UINT8* materialCBStart = nullptr;
-
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
-	//ID3D12DescriptorHeap* descriptorHeap = nullptr;
-
-	//ID3D12Resource* texture = nullptr;
-	//ID3D12Resource* textureUploadResource = nullptr;
+	ID3D12DescriptorHeap* descriptorHeap = nullptr;
 
 	UINT											rtvDescSize = 0;
 
@@ -269,7 +269,7 @@ struct HitProgram
 struct DXRGlobal
 {
 	AccelerationStructureBuffer						TLAS;
-	std::vector<AccelerationStructureBuffer>		BLASs;
+	AccelerationStructureBuffer						BLAS;
 	uint64_t										tlasSize;
 
 	ID3D12Resource* shaderTable = nullptr;
@@ -318,7 +318,7 @@ namespace D3D12
 namespace D3DResources
 {
 	void Create_Buffer(D3D12Global& d3d, D3D12BufferCreateInfo& info, ID3D12Resource** ppResource);
-	void Create_Texture(D3D12Global& d3d, D3D12Resources& resources, Material& material, uint32_t index);
+	void Create_Texture(D3D12Global& d3d, TextureResource& resources, TextureInfo& textureInfo);
 	void Create_Vertex_Buffer(D3D12Global& d3d, D3D12Resources& resources, const SceneObject& sceneObj, uint32_t index);
 	void Create_Index_Buffer(D3D12Global& d3d, D3D12Resources& resources, const SceneObject& sceneObj, uint32_t index);
 	void Create_Constant_Buffer(D3D12Global& d3d, ID3D12Resource** buffer, UINT64 size);

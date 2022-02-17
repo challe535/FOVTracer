@@ -9,6 +9,7 @@ struct Material
 {
 	std::string Name = "DefaultMaterial";
 	std::string TexturePath = "";
+	std::string NormalMapPath = "";
 	Vector2f  TextureResolution = Vector2f(512, 512);
 };
 
@@ -17,6 +18,8 @@ struct Vertex
 	Vector3f Position;
 	Vector2f Texcoord;
 	Vector3f Normal;
+	Vector3f Tangent;
+	Vector3f Binormal;
 };
 
 class StaticMesh
@@ -34,6 +37,8 @@ public:
 	bool HasMaterial = false;
 	bool HasNormals = false;
 	bool HasTexcoords = false;
+	bool HasTangents = false;
+	bool HasBinormals = false;
 
 private:
 

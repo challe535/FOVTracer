@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Scene.h"
 #include "Utils.h"
+#include "Log.h"
 
 void Scene::AddSceneObject(const SceneObject& SObject)
 {
@@ -17,11 +18,11 @@ void Scene::Clear()
 	SceneObjects.clear();
 }
 
-void Scene::LoadFromPath(std::string Path)
+void Scene::LoadFromPath(std::string Path, bool ShouldGenNormals)
 {
 	std::vector<StaticMesh> Meshes;
 
-	bool Success = Utils::LoadStaticMeshes(Path, Meshes, true);
+	bool Success = Utils::LoadStaticMeshes(Path, Meshes, ShouldGenNormals);
 
 	if (Success)
 	{

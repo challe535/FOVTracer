@@ -11,7 +11,7 @@ public:
 	void AddSceneObject(const SceneObject& SObject);
 	uint32_t GetNumSceneObjects();
 
-	void LoadFromPath(std::string Path);
+	void LoadFromPath(std::string Path, bool ShouldGenNormals);
 
 	void Clear();
 

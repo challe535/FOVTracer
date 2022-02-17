@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Tracer.h"
 #include "Log.h"
+#include "Utils.h"
 
 void Tracer::Init(TracerConfigInfo config, HWND& window, Scene scene) 
 {
@@ -88,11 +89,17 @@ void Tracer::Cleanup()
 void Tracer::AddObject(SceneObject& SceneObj, uint32_t Index)
 {
 	Resources.sceneObjResources.emplace_back();
-	DXR.BLASs.emplace_back();
 
 	D3DResources::Create_Vertex_Buffer(D3D, Resources, SceneObj, Index);
 	D3DResources::Create_Index_Buffer(D3D, Resources, SceneObj, Index);
 
-	D3DResources::Create_Texture(D3D, Resources, SceneObj.Mesh.MeshMaterial, Index);
+	//TODO: Return reference or maybe just look up the resource in Resources instead of returning copy??
+	TextureInfo DiffuseTex = Utils::LoadTexture(SceneObj.Mesh.MeshMaterial.TexturePath, Resources);
+	TextureInfo NormalsTex = Utils::LoadTexture(SceneObj.Mesh.MeshMaterial.NormalMapPath, Resources);
+
+	SceneObj.Mesh.MeshMaterial.TextureResolution = Vector2f(static_cast<float>(DiffuseTex.width), static_cast<float>(DiffuseTex.height));
+
+	D3DResources::Create_Texture(D3D, Resources.sceneObjResources[Index].diffuseTex, DiffuseTex);
+	D3DResources::Create_Texture(D3D, Resources.sceneObjResources[Index].normalTex, NormalsTex);
 	D3DResources::Create_Material_CB(D3D, Resources, SceneObj.Mesh.MeshMaterial, Index);
 }

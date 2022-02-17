@@ -29,7 +29,18 @@ namespace Utils
 	/**
 	* Loads a texture with stb_image and returns its data.
 	*/
-	TextureInfo LoadTexture(std::string filepath);
+	TextureInfo LoadTexture(std::string filepath, D3D12Resources& resources);
 
 	void FormatTexture(TextureInfo& info, UINT8* pixels);
+
+	struct SFallbackTexture
+	{
+		UINT8* texture;
+		UINT32 width = 512;
+		UINT32 height = 512;
+		UINT32 stride = 4;
+	};
+	static SFallbackTexture* FallbackTexture = new SFallbackTexture();
+
+	SFallbackTexture* GetFallbackTexture();
 }

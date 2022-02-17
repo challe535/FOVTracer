@@ -73,6 +73,7 @@ namespace Utils
 
 						aiVector3D Vec = pMesh->mTextureCoords[0][j];
 						Vector2f Texcoord(Vec.x, Vec.y);
+						
 						Vtx.Texcoord = Texcoord;
 					}
 
@@ -84,6 +85,21 @@ namespace Utils
 						aiVector3D Vec = pMesh->mNormals[j];
 						Vector3f Normal(Vec.x, Vec.y, Vec.z);
 						Vtx.Normal = Normal;
+					}
+
+					//Vertex tangents and binormals.
+					if (pMesh->HasTangentsAndBitangents())
+					{
+						SMesh.HasTangents = true;
+						SMesh.HasBinormals = true;
+
+						aiVector3D Vec = pMesh->mTangents[j];
+						Vector3f Tangent(Vec.x, Vec.y, Vec.z);
+						Vtx.Tangent = Tangent;
+
+						Vec = pMesh->mBitangents[j];
+						Vector3f Bitangent(Vec.x, Vec.y, Vec.z);
+						Vtx.Binormal = Bitangent;
 					}
 
 					SMesh.Vertices.push_back(Vtx);
@@ -122,11 +138,21 @@ namespace Utils
 
 					Mat.Name = pMat->GetName().C_Str();
 
-					aiString path;
-					pMat->GetTexture(aiTextureType_DIFFUSE, 0, &path);
+					if (pMat->GetTextureCount(aiTextureType_DIFFUSE) > 0)
+					{
+						aiString path;
+						pMat->GetTexture(aiTextureType_DIFFUSE, 0, &path);
 
-					//TODO: Make more flexible when needed later
-					Mat.TexturePath = parent_folder + std::string(path.C_Str());
+						Mat.TexturePath = parent_folder + std::string(path.C_Str());
+					}
+
+					if (pMat->GetTextureCount(aiTextureType_NORMALS) > 0)
+					{
+						aiString path;
+						pMat->GetTexture(aiTextureType_NORMALS, 0, &path);
+
+						Mat.NormalMapPath = parent_folder + std::string(path.C_Str());
+					}
 
 					SMesh.MeshMaterial = Mat;
 				}
@@ -137,6 +163,13 @@ namespace Utils
 					continue;
 				}
 
+				CORE_TRACE("Loaded mesh {0} with {1} tris :: Normals {2}, Texcoords {3}, Material {4}",
+					pMesh->mName.C_Str(),
+					SMesh.Indices.size() / 3,
+					SMesh.HasNormals ? "available" : "N/A",
+					SMesh.HasTexcoords ? "available" : "N/A",
+					SMesh.HasMaterial ? "available" : "N/A"
+					);
 				SMeshVector.push_back(SMesh);
 			}
 		}
@@ -154,22 +187,58 @@ namespace Utils
 		return std::string(PATH_TO_RESOURCES).append(ResourceName);
 	}
 
+	SFallbackTexture* GetFallbackTexture()
+	{
+		if (FallbackTexture->texture)
+			return FallbackTexture;
+
+		FallbackTexture->texture = reinterpret_cast<UINT8*>(malloc(FallbackTexture->width * FallbackTexture->height * FallbackTexture->stride));
+		const UINT8 fallbackRed = 0xFF;
+		const UINT8 fallbackGreen = 0;
+		const UINT8 fallbackBlue = 0xFF;
+		const UINT8 fallbackAlpha = 0xFF;
+
+		for (int i = 0; i < FallbackTexture->width * FallbackTexture->height; i++)
+		{
+			FallbackTexture->texture[i * FallbackTexture->stride] = fallbackRed;
+			FallbackTexture->texture[i * FallbackTexture->stride + 1] = fallbackGreen;
+			FallbackTexture->texture[i * FallbackTexture->stride + 2] = fallbackBlue;
+			FallbackTexture->texture[i * FallbackTexture->stride + 3] = fallbackAlpha;
+		}
+
+		return FallbackTexture;
+	}
+
 	/**
 	* Load an image
 	*/
-	TextureInfo LoadTexture(std::string filepath)
+	TextureInfo LoadTexture(std::string filepath, D3D12Resources& resources)
 	{
+		if (resources.Textures.count(filepath) > 0)
+			return resources.Textures.at(filepath);
+
 		TextureInfo result = {};
+
+		CORE_TRACE("Attempting to loading texture from {0}", filepath);
 
 		// Load image pixels with stb_image
 		UINT8* pixels = stbi_load(filepath.c_str(), &result.width, &result.height, &result.stride, STBI_default);
 		if (!pixels)
 		{
-			throw std::runtime_error("Error: failed to load image!");
+			CORE_ERROR("Failed to load texture at {0}", filepath);
+			SFallbackTexture* fallback = GetFallbackTexture();
+
+			pixels = fallback->texture;
+			result.width = fallback->width;
+			result.height = fallback->height;
+			result.stride = fallback->stride;
 		}
 
 		FormatTexture(result, pixels);
 		stbi_image_free(pixels);
+
+		resources.Textures.insert_or_assign(filepath, result);
+
 		return result;
 	}
 

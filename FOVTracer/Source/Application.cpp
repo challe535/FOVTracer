@@ -29,9 +29,9 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 
 	Log::Init();
 
-	RayScene.LoadFromPath(Utils::GetResourcePath("misc/bunny.obj"));
+	RayScene.LoadFromPath(Utils::GetResourcePath("sponza/sponza.obj"), false);
+	//RayScene.LoadFromPath(Utils::GetResourcePath("misc/bunny.obj"), true);
 	CORE_INFO("{0} objects in scene.", RayScene.GetNumSceneObjects());
-	CORE_TRACE("Mesh verts size = {0}", RayScene.SceneObjects[0].Mesh.Vertices.size());
 
 	//Initalize and configure tracer
 	TracerConfigInfo Config;
