@@ -70,18 +70,18 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
 
 	const float3 lightPos = float3(0, 1000, 0);
 
-    int2 coord = floor(frac(vertex.uv) * textureResolution.xy);
+    int2 coord = floor(frac(vertex.uv) * material.textureResolution.xy);
   
 	float3 diffuse = float3(1, 1, 0);
-    if (hasDiffuseTexture)
+    if (material.hasDiffuseTexture)
     {
         diffuse = albedo.Load(int3(coord, 0)).rgb;
     }
 
-    float3 newnormal = float3(0, 0, 0);
-    if (hasNormalMap)
+    //float3 newnormal = float3(0, 0, 0);
+    if (material.hasNormalMap)
     {
-        newnormal = CalcMappedNormal(vertex, coord);
+        vertex.normal = CalcMappedNormal(vertex, coord);
     }
 
     float3 worldOrigin = WorldRayOrigin() + RayTCurrent() * WorldRayDirection() + vertex.normal * 0.001f;
@@ -91,8 +91,8 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
 
     float3 color = factor * diffuse * max(dot(lightDir, vertex.normal), 0.0);
 
-    //payload.ShadedColorAndHitT = float4(color, RayTCurrent());
+    payload.ShadedColorAndHitT = float4(color, RayTCurrent());
 	//payload.ShadedColorAndHitT = float4(vertex.uv, 0, RayTCurrent());
-    payload.ShadedColorAndHitT = float4(newnormal, RayTCurrent());
+    //payload.ShadedColorAndHitT = float4(newnormal, RayTCurrent());
 	// payload.ShadedColorAndHitT = float4(RayTCurrent(), RayTCurrent(), RayTCurrent(),RayTCurrent())/1000;
 }

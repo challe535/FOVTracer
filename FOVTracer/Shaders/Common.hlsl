@@ -49,14 +49,17 @@ cbuffer ViewCB : register(b0)
 	matrix view;
 	float4 viewOriginAndTanHalfFovY;
 	float2 resolution;
+	uint sqrtSamplesPerPixel;
 };
 
-cbuffer MaterialCB : register(b1)
+struct MaterialCB
 {
 	float4 textureResolution;
     bool hasDiffuseTexture;
     bool hasNormalMap;
 };
+
+ConstantBuffer<MaterialCB> material : register(b1);
 
 // ---[ Resources ]---
 

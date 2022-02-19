@@ -32,32 +32,57 @@
 [shader("raygeneration")]
 void RayGen()
 {
-	uint2 LaunchIndex = DispatchRaysIndex().xy;
-	uint2 LaunchDimensions = DispatchRaysDimensions().xy;
+    uint2 LaunchIndex = DispatchRaysIndex().xy;
+    float2 LaunchDimensions = float2(DispatchRaysDimensions().xy);
+	
+    float3 finalColor = float3(0, 0, 0);
 
-	float2 d = (((LaunchIndex.xy + 0.5f) / resolution.xy) * 2.f - 1.f);
-	float aspectRatio = (resolution.x / resolution.y);
+	//super sampling
+    float pixelPadding = 0.1;
 
-	// Setup the ray
-	RayDesc ray;
-	ray.Origin = viewOriginAndTanHalfFovY.xyz;
-	ray.Direction = normalize((d.x * view[0].xyz * viewOriginAndTanHalfFovY.w * aspectRatio) - (d.y * view[1].xyz * viewOriginAndTanHalfFovY.w) + view[2].xyz);
-	ray.TMin = 0.1f;
-	ray.TMax = 100000.f;	
+    float stepSize = 1.0 / float(sqrtSamplesPerPixel + 1);
 
-	// Trace the ray
-	HitInfo payload;
-	payload.ShadedColorAndHitT = float4(0.f, 0.f, 0.f, 0.f);
+    float offsetX = stepSize;
+    float offsetY = stepSize;
 
-	TraceRay(
-		SceneBVH,
-		RAY_FLAG_NONE,
-		0xFF,
-		1,
-		1,
-		1,
-		ray,
-		payload);
+    for (int i = 0; i < sqrtSamplesPerPixel; i++)
+    {
+        offsetY = stepSize;
+        for (int j = 0; j < sqrtSamplesPerPixel; j++)
+        {
+            float2 d = ((float2(LaunchIndex.x + offsetX, LaunchIndex.y + offsetY) / LaunchDimensions.xy) * 2.f - 1.f);
+            float aspectRatio = (LaunchDimensions.x / LaunchDimensions.y);
 
-	RTOutput[LaunchIndex.xy] = float4(payload.ShadedColorAndHitT.rgb, 1.f);
-}
+	        // Setup the ray
+            RayDesc ray;
+            ray.Origin = viewOriginAndTanHalfFovY.xyz;
+            ray.Direction = normalize((d.x * view[0].xyz * viewOriginAndTanHalfFovY.w * aspectRatio) - (d.y * view[1].xyz * viewOriginAndTanHalfFovY.w) + view[2].xyz);
+            ray.TMin = 0.1f;
+            ray.TMax = 100000.f;
+
+	        // Trace the ray
+            HitInfo payload;
+            payload.ShadedColorAndHitT = float4(0.f, 0.f, 0.f, 0.f);
+
+            TraceRay(
+		    SceneBVH,
+		    RAY_FLAG_NONE,
+		    0xFF,
+		    1,
+		    1,
+		    1,
+		    ray,
+		    payload
+            );
+
+            finalColor += payload.ShadedColorAndHitT.rgb;
+
+            offsetY += stepSize;
+        }
+        offsetX += stepSize;
+    }
+
+    finalColor /= pow(float(sqrtSamplesPerPixel),2);
+
+    RTOutput[LaunchIndex.xy] = float4(finalColor, 1.f);
+    }

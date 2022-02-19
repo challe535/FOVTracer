@@ -55,15 +55,16 @@ struct TextureInfo
 struct MaterialCB
 {
 	DirectX::XMFLOAT4 resolution;
-	bool hasDiffuse;
-	bool hasNormal;
+	uint32_t hasDiffuse;
+	uint32_t hasNormal;
 };
 
 struct ViewCB
 {
 	DirectX::XMMATRIX view = DirectX::XMMatrixIdentity();
 	DirectX::XMFLOAT4 viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(0, 0.f, 0.f, 0.f);
-	DirectX::XMFLOAT2 resolution = DirectX::XMFLOAT2(1280, 720);
+	DirectX::XMFLOAT2 resolution = DirectX::XMFLOAT2(10, 10);
+	uint32_t sqrtSamplesPerPixel = 3;
 };
 
 struct D3D12Global
@@ -83,8 +84,8 @@ struct D3D12Global
 	HANDLE FenceEvent;
 	UINT FrameIndex = 0;
 
-	int Width = 640;
-	int	Height = 360;
+	int Width = 1280;
+	int	Height = 720;
 	bool Vsync = false;
 };
 

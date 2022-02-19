@@ -623,18 +623,18 @@ namespace D3DResources
 	void Create_Material_CB(D3D12Global& d3d, D3D12Resources& resources, const Material& material, uint32_t index)
 	{
 		resources.sceneObjResources[index].materialCBData.resolution = DirectX::XMFLOAT4(material.TextureResolution.X, material.TextureResolution.Y, 0.f, 0.f);
-		resources.sceneObjResources[index].materialCBData.hasDiffuse = !material.TexturePath.empty();
-		resources.sceneObjResources[index].materialCBData.hasNormal = !material.NormalMapPath.empty();
+		resources.sceneObjResources[index].materialCBData.hasDiffuse = !material.TexturePath.empty() ? 1u : 0u;
+		resources.sceneObjResources[index].materialCBData.hasNormal = !material.NormalMapPath.empty() ? 1u : 0u;
 
 		Create_Constant_Buffer(d3d, &resources.sceneObjResources[index].materialCB, sizeof(MaterialCB));
 #if NAME_D3D_RESOURCES
 		resources.sceneObjResources[index].materialCB->SetName(L"Material Constant Buffer");
 #endif
-
-		HRESULT hr = resources.sceneObjResources[index].materialCB->Map(0, nullptr, reinterpret_cast<void**>(&resources.sceneObjResources[index].materialCBStart));
+		UINT8* pData;
+		HRESULT hr = resources.sceneObjResources[index].materialCB->Map(0, nullptr, reinterpret_cast<void**>(&pData));
 		Utils::Validate(hr, L"Error: failed to map Material constant buffer!");
 
-		memcpy(resources.sceneObjResources[index].materialCBStart, &resources.sceneObjResources[index].materialCBData, sizeof(resources.sceneObjResources[index].materialCBData));
+		memcpy(pData, &resources.sceneObjResources[index].materialCBData, sizeof(MaterialCB));
 
 		resources.sceneObjResources[index].materialCB->Unmap(0, nullptr);
 	}
