@@ -757,7 +757,7 @@ namespace DXR
 		ASInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
 		ASInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
 		ASInputs.pGeometryDescs = geometryDescs.data();
-		ASInputs.NumDescs = geometryDescs.size();
+		ASInputs.NumDescs = static_cast<UINT>(geometryDescs.size());
 		ASInputs.Flags = buildFlags;
 
 		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO ASPreBuildInfo = {};
@@ -1204,7 +1204,7 @@ namespace DXR
 		dxr.shaderTableRecordSize += 8;							// CBV/SRV/UAV descriptor table
 		dxr.shaderTableRecordSize = ALIGN(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT, dxr.shaderTableRecordSize);
 
-		shaderTableSize = (dxr.shaderTableRecordSize * (4 + resources.sceneObjResources.size()));		// 5 shader records in the table
+		shaderTableSize = (dxr.shaderTableRecordSize * (4 + static_cast<uint32_t>(resources.sceneObjResources.size())));		// 5 shader records in the table
 		shaderTableSize = ALIGN(D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, shaderTableSize);
 
 		// Create the shader table buffer
@@ -1269,7 +1269,7 @@ namespace DXR
 	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, Scene& scene)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-		desc.NumDescriptors = DX12Constants::descriptors_per_shader * resources.sceneObjResources.size();
+		desc.NumDescriptors = DX12Constants::descriptors_per_shader * static_cast<UINT>(resources.sceneObjResources.size());
 		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 

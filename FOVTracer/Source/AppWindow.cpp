@@ -48,6 +48,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
+	case WM_MOUSEMOVE:
+	{
+		int mouseX = GET_X_LPARAM(lParam);
+		int mouseY = GET_Y_LPARAM(lParam);
+
+		//Send to input handler through static global?
+
+		break;
+	}
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}

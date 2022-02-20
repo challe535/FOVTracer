@@ -22,11 +22,7 @@ void Tracer::Init(TracerConfigInfo config, HWND& window, Scene scene)
 
 	D3DResources::Create_Descriptor_Heaps(D3D, Resources);
 	D3DResources::Create_BackBuffer_RTV(D3D, Resources);
-	/*D3DResources::Create_Vertex_Buffer(D3D, Resources, scene.SceneObjects[0].SingleMeshRepresentation);
-	D3DResources::Create_Index_Buffer(D3D, Resources, scene.SceneObjects[0].SingleMeshRepresentation);
-	D3DResources::Create_Texture(D3D, Resources, scene.SceneObjects[0].StaticMeshes[0].MeshMaterial);*/
 	D3DResources::Create_View_CB(D3D, Resources);
-	//D3DResources::Create_Material_CB(D3D, Resources, scene.SceneObjects[0].StaticMeshes[0].MeshMaterial);
 
 	for (int i = 0; i < scene.SceneObjects.size(); i++)
 		AddObject(scene.SceneObjects[i], i);

@@ -26,6 +26,7 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 	HRESULT HR = AppWindow::Create(width, height, instance, Window, title);
 	Utils::Validate(HR, L"Error: Failed to create window!");
 
+	SetCapture(Window);
 	AllocConsole();
 
 	Log::Init();
@@ -92,6 +93,8 @@ void Application::Run()
 
 void Application::Cleanup()
 {
+	ReleaseCapture();
+
 	RayScene.Clear();
 	RayTracer.Cleanup();
 	DestroyWindow(Window);

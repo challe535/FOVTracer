@@ -3,7 +3,6 @@
 #include "Platform.h"
 #include "StaticMesh.h"
 
-//REFACTOR SO THIS IS NOT NEEDED. ALL OF DX.h NEEDS TO BE REVISITED AND REFACTORED!!!
 #include "DX.h"
 
 

@@ -109,6 +109,7 @@
     <ClCompile Include="Source\Application.cpp" />
     <ClCompile Include="Source\AppWindow.cpp" />
     <ClCompile Include="Source\DX.cpp" />
+    <ClCompile Include="Source\DXMathUtil.cpp" />
     <ClCompile Include="Source\Log.cpp" />
     <ClCompile Include="Source\pch.cpp" />
     <ClCompile Include="Source\Scene.cpp" />
@@ -123,10 +124,12 @@
     <ClInclude Include="Source\AppWindow.h" />
     <ClInclude Include="Source\Core.h" />
     <ClInclude Include="Source\DX.h" />
+    <ClInclude Include="Source\DXMathUtil.h" />
     <ClInclude Include="Source\Log.h" />
     <ClInclude Include="Source\Math.h" />
     <ClInclude Include="Source\pch.h" />
     <ClInclude Include="Source\Platform.h" />
+    <ClInclude Include="Source\Quaternion.h" />
     <ClInclude Include="Source\ResourceManagement.h" />
     <ClInclude Include="Source\Scene.h" />
     <ClInclude Include="Source\SceneObject.h" />

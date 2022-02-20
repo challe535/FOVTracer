@@ -198,7 +198,7 @@ namespace Utils
 		const UINT8 fallbackBlue = 0xFF;
 		const UINT8 fallbackAlpha = 0xFF;
 
-		for (int i = 0; i < FallbackTexture->width * FallbackTexture->height; i++)
+		for (uint32_t i = 0; i < FallbackTexture->width * FallbackTexture->height; i++)
 		{
 			FallbackTexture->texture[i * FallbackTexture->stride] = fallbackRed;
 			FallbackTexture->texture[i * FallbackTexture->stride + 1] = fallbackGreen;
