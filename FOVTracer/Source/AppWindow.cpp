@@ -27,6 +27,7 @@
 
 #include "pch.h"
 #include "AppWindow.h"
+#include "Application.h"
 
 #include <iostream>
 
@@ -53,8 +54,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		int mouseX = GET_X_LPARAM(lParam);
 		int mouseY = GET_Y_LPARAM(lParam);
 
-		//Send to input handler through static global?
-
+		Application::GetApplication().InputHandler.OnMouseMove(mouseX, mouseY);
 		break;
 	}
 	default:

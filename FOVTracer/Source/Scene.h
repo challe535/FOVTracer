@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SceneObject.h"
+#include "Camera.h"
 
 #include <vector>
 #include <string>
@@ -16,7 +17,6 @@ public:
 	void Clear();
 
 	std::vector<SceneObject> SceneObjects;
-private:
-	//std::vector<PointLight> ScenePointLights;
+	Camera SceneCamera;
 };
 

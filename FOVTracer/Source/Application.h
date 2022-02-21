@@ -2,11 +2,16 @@
 
 #include "Core.h"
 #include "Tracer.h"
+#include "Input.h"
 
 class Application
 {
 
 public:
+	Application() {};
+	Application(Application const&) = delete;
+	void operator=(Application const&) = delete;
+
 	/**
 	* Initialize application resources.
 	*/
@@ -22,9 +27,14 @@ public:
 	*/
 	void Cleanup();
 
+	static Application& GetApplication() { static Application Instance; return Instance; };
+
+	Input InputHandler;
 private:
 	HWND Window;
 	Tracer RayTracer;
 	Scene RayScene;
+
+	
 };
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DirectXMath.h>
+#include "Vector3.h"
 
 namespace DXMath
 {
@@ -11,4 +12,6 @@ namespace DXMath
 	DirectX::XMFLOAT3 DXFloat3AddFloat3(DirectX::XMFLOAT3 v1, DirectX::XMFLOAT3 v2);
 
 	DirectX::XMFLOAT3 DXFloat3Cross(DirectX::XMFLOAT3 v1, DirectX::XMFLOAT3 v2);
+
+	DirectX::XMFLOAT3 Vector3fToDXFloat3(Vector3f v);
 }

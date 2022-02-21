@@ -3,7 +3,7 @@
 #include "Log.h"
 #include "Utils.h"
 
-void Tracer::Init(TracerConfigInfo config, HWND& window, Scene scene) 
+void Tracer::Init(TracerConfigInfo config, HWND& window, Scene& scene) 
 {
 	D3D.Width = config.Width;
 	D3D.Height = config.Height;
@@ -51,11 +51,10 @@ void Tracer::Init(TracerConfigInfo config, HWND& window, Scene scene)
 #endif
 }
 
-void Tracer::Update()
+void Tracer::Update(Scene& scene)
 {
 #if DXR_ENABLED
-	D3DResources::Update_View_CB(D3D, Resources);
-	
+	D3DResources::Update_View_CB(D3D, Resources, scene.SceneCamera);
 #endif
 }
 

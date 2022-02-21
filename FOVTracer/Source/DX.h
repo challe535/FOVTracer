@@ -328,7 +328,7 @@ namespace D3DResources
 	void Create_Material_CB(D3D12Global& d3d, D3D12Resources& resources, const Material& material, uint32_t index);
 	void Create_Descriptor_Heaps(D3D12Global& d3d, D3D12Resources& resources);
 
-	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources);
+	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera);
 
 	void Upload_Texture(D3D12Global& d3d, ID3D12Resource* destResource, ID3D12Resource* srcResource, const TextureInfo& texture);
 

@@ -636,7 +636,7 @@ namespace D3DResources
 
 		memcpy(pData, &resources.sceneObjResources[index].materialCBData, sizeof(MaterialCB));
 
-		resources.sceneObjResources[index].materialCB->Unmap(0, nullptr);
+		//resources.sceneObjResources[index].materialCB->Unmap(0, nullptr);
 	}
 
 	/**
@@ -663,24 +663,19 @@ namespace D3DResources
 	/**
 	* Update the view constant buffer.
 	*/
-	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources)
+	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera)
 	{
-		const float rotationSpeed = 0.005f;
 		DirectX::XMMATRIX view, invView;
 		DirectX::XMFLOAT3 eye, focus, up;
 		float aspect, fov;
 
-		//resources.eyeAngle.x = 180;
-
-		eye = DirectX::XMFLOAT3(0, 175, -3);
-		up = DirectX::XMFLOAT3(0.f, 1.f, 0.f);
+		eye = DirectX::XMFLOAT3(camera.Position.X, camera.Position.Y, camera.Position.Z);
+		up = DXMath::Vector3fToDXFloat3(camera.GetUpVector());
 
 		aspect = (float)d3d.Width / (float)d3d.Height;
-		fov = 75.f * (DirectX::XM_PI / 180.f);							// convert to radians
+		fov = camera.FOV * (DirectX::XM_PI / 180.f);							// convert to radians
 
-		//resources.rotationOffset += rotationSpeed;
-
-		focus = DirectX::XMFLOAT3(eye.x - 1, eye.y, eye.z);
+		focus = DXMath::DXFloat3AddFloat3(eye, DXMath::Vector3fToDXFloat3(camera.GetForward()));
 
 		view = DirectX::XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&focus), XMLoadFloat3(&up));
 		invView = XMMatrixInverse(NULL, view);

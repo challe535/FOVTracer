@@ -26,4 +26,9 @@ namespace DXMath
 			v1.x * v2.y - v1.y * v2.x
 		);
 	}
+
+	DirectX::XMFLOAT3 Vector3fToDXFloat3(Vector3f v)
+	{
+		return DirectX::XMFLOAT3(v.X, v.Y, v.Z);
+	}
 }

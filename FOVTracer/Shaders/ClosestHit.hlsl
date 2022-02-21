@@ -29,13 +29,13 @@
 
 // ---[ Closest Hit Shader ]---
 
-bool IsShadowed(float3 lightDir, float3 origin)
+bool IsShadowed(float3 lightDir, float3 origin, float maxDist)
 {
     RayDesc ray;
     ray.Origin = origin;
     ray.Direction = lightDir;
     ray.TMin = 0.01;
-    ray.TMax = 100000;
+    ray.TMax = maxDist;
     bool hit = true;
 
     ShadowHitInfo shadowPayload;
@@ -68,7 +68,7 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
 	float3 barycentrics = float3((1.0f - attrib.uv.x - attrib.uv.y), attrib.uv.x, attrib.uv.y);
 	VertexAttributes vertex = GetVertexAttributes(triangleIndex, barycentrics);
 
-	const float3 lightPos = float3(0, 1000, 0);
+	const float3 lightPos = float3(0, 100, 0);
 
     int2 coord = floor(frac(vertex.uv) * material.textureResolution.xy);
   
@@ -85,9 +85,10 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     }
 
     float3 worldOrigin = WorldRayOrigin() + RayTCurrent() * WorldRayDirection() + vertex.normal * 0.001f;
-    float3 lightDir = normalize(lightPos - worldOrigin);
+    float3 lightV = lightPos - worldOrigin;
+    float3 lightDir = normalize(lightV);
 
-    float factor = IsShadowed(lightDir, worldOrigin) ? 0.3 : 1.0;
+    float factor = IsShadowed(lightDir, worldOrigin, length(lightV)) ? 0.3 : 1.0;
 
     float3 color = factor * diffuse * max(dot(lightDir, vertex.normal), 0.0);
 

@@ -17,8 +17,8 @@ struct TracerConfigInfo
 class Tracer
 {
 public:
-	void Init(TracerConfigInfo config, HWND& window, Scene scene);
-	void Update();
+	void Init(TracerConfigInfo config, HWND& window, Scene& scene);
+	void Update(Scene& scene);
 	void Render();
 	void Cleanup();
 
