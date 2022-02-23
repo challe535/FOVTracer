@@ -50,6 +50,9 @@ cbuffer ViewCB : register(b0)
 	float4 viewOriginAndTanHalfFovY;
 	float2 resolution;
 	uint sqrtSamplesPerPixel;
+
+	//Unrelated to view but using this buffer for convenience for now...
+    float elapsedTimeSeconds;
 };
 
 struct MaterialCB

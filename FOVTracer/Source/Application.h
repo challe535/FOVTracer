@@ -29,12 +29,13 @@ public:
 
 	static Application& GetApplication() { static Application Instance; return Instance; };
 
+public:
 	Input InputHandler;
+	float ElapsedTimeS = 0.f;
+
 private:
 	HWND Window;
 	Tracer RayTracer;
 	Scene RayScene;
-
-	
 };
 

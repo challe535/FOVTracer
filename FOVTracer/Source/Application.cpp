@@ -26,7 +26,12 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 	HRESULT HR = AppWindow::Create(width, height, instance, Window, title);
 	Utils::Validate(HR, L"Error: Failed to create window!");
 
-	SetCapture(Window);
+	RECT OldClip, Clip;
+
+	GetClipCursor(&OldClip);
+	GetWindowRect(Window, &Clip);
+
+
 	AllocConsole();
 
 	Log::Init();
@@ -44,7 +49,7 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 	Config.Height = height;
 	Config.Width = width;
 	Config.Instance = instance;
-	Config.Vsync = true;
+	Config.Vsync = false;
 
 	RayTracer.Init(Config, Window, RayScene);
 }
@@ -57,7 +62,6 @@ void Application::Run()
 	float FpsRunningAverage = 0.0f;
 	float FpsTrueAverage = 0.0f;
 
-	float TotalTimeSinceStart = 0.0f;
 	uint64_t FrameCount = 0;
 
 	while (WM_QUIT != msg.message)
@@ -70,19 +74,27 @@ void Application::Run()
 			DispatchMessage(&msg);
 		}
 
+		if (GetFocus() == Window)
+		{
+			ShowCursor(false);
+			InputHandler.UpdateMouseInfo();
+		}
 
 		//App specific code goes here
 		//Feed scene into tracer and tell it to trace the scene
 
 		Camera& SceneCamera = RayScene.SceneCamera;
 
-		//SceneCamera.Orientation *= Quaternion(InputHandler.MouseDelta.Y * DeltaTime, InputHandler.MouseDelta.X * DeltaTime, 0);
+		float MouseSensitivity = 0.3f;
+
+		SceneCamera.Orientation *= Quaternion(MouseSensitivity * DeltaTime * InputHandler.MouseDelta.X, SceneCamera.BaseUp);
+		SceneCamera.Orientation *= Quaternion(MouseSensitivity * DeltaTime * InputHandler.MouseDelta.Y, SceneCamera.BaseRight);
 
 		float CameraForwardMove = InputHandler.IsKeyDown(W_KEY) - InputHandler.IsKeyDown(S_KEY);
 		float CameraRightMove = InputHandler.IsKeyDown(D_KEY) - InputHandler.IsKeyDown(A_KEY);
 		float CameraUpMove = InputHandler.IsKeyDown(E_KEY) - InputHandler.IsKeyDown(Q_KEY);
 
-		float CameraSpeed = 100.0f;
+		float CameraSpeed = 200.0f;
 
 		Vector3f CameraMove = CameraForwardMove * SceneCamera.GetForward() + CameraRightMove * SceneCamera.GetRight() + CameraUpMove * SceneCamera.GetUpVector();
 
@@ -94,13 +106,13 @@ void Application::Run()
 		auto const FrameEnd = std::chrono::high_resolution_clock::now();
 
 		DeltaTime = std::chrono::duration<float>(FrameEnd - FrameStart).count();
-		TotalTimeSinceStart += DeltaTime;
+		ElapsedTimeS += DeltaTime;
 		FrameCount++;
 		
 		float FrameFpsAverage = 1.0f / DeltaTime;
 
 		FpsRunningAverage = FpsRunningAverage * 0.9f + FrameFpsAverage * 0.1f;
-		FpsTrueAverage = 1.0f * (static_cast<float>(FrameCount) / TotalTimeSinceStart);
+		FpsTrueAverage = 1.0f * (static_cast<float>(FrameCount) / ElapsedTimeS);
 
 		if (FrameCount % 200 == 0)
 		{
@@ -115,7 +127,7 @@ void Application::Run()
 
 void Application::Cleanup()
 {
-	ReleaseCapture();
+	ClipCursor(NULL);
 
 	RayScene.Clear();
 	RayTracer.Cleanup();

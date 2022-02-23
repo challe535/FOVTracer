@@ -30,4 +30,5 @@ protected:
 	D3D12ShaderCompilerInfo ShaderCompiler;
 
 	void AddObject(SceneObject& SceneObj, uint32_t Index);
+	TextureResource LoadTexture(std::string TextureName);
 };

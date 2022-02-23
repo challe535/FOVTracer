@@ -14,11 +14,17 @@ typedef UINT_PTR KeyCode;
 class Input
 {
 public:
+	Input();
+
 	void OnFrameEnd();
 	void OnMouseMove(int CurrentPosX, int CurrentPosY);
+	void UpdateMouseInfo();
 
 	uint8_t IsKeyDown(KeyCode Code);
 
 	Vector2f MouseDelta;
 	Vector2f MousePos;
+
+private:
+	Vector2f PrimaryScreenSize;
 };

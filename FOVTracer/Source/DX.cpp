@@ -3,6 +3,7 @@
 #include "Utils.h"
 #include "Log.h"
 #include "Math.h"
+#include "Application.h"
 
 namespace D3DShaders
 {
@@ -683,6 +684,9 @@ namespace D3DResources
 		resources.viewCBData.view = XMMatrixTranspose(invView);
 		resources.viewCBData.viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(eye.x, eye.y, eye.z, tanf(fov * 0.5f));
 		resources.viewCBData.resolution = DirectX::XMFLOAT2((float)d3d.Width, (float)d3d.Height);
+		//SamplesPerPixel set in struct directly right now...
+		resources.viewCBData.elapsedTimeSeconds = Application::GetApplication().ElapsedTimeS;
+
 		memcpy(resources.viewCBStart, &resources.viewCBData, sizeof(resources.viewCBData));
 	}
 
@@ -706,10 +710,12 @@ namespace D3DResources
 			SAFE_RELEASE(resources.sceneObjResources[i].vertexBuffer);
 			SAFE_RELEASE(resources.sceneObjResources[i].indexBuffer);
 			SAFE_RELEASE(resources.sceneObjResources[i].materialCB);
-			SAFE_RELEASE(resources.sceneObjResources[i].diffuseTex.texture);
-			SAFE_RELEASE(resources.sceneObjResources[i].diffuseTex.textureUploadResource);			
-			SAFE_RELEASE(resources.sceneObjResources[i].normalTex.texture);
-			SAFE_RELEASE(resources.sceneObjResources[i].normalTex.textureUploadResource);
+			//SAFE_RELEASE(resources.sceneObjResources[i].diffuseTex.texture);
+			//SAFE_RELEASE(resources.sceneObjResources[i].diffuseTex.textureUploadResource);			
+			//SAFE_RELEASE(resources.sceneObjResources[i].normalTex.texture);
+			//SAFE_RELEASE(resources.sceneObjResources[i].normalTex.textureUploadResource);
+
+			//Iterate texures in resources and release each texture and texture upload
 		}
 	}
 
@@ -1360,7 +1366,7 @@ namespace DXR
 			textureSRVDesc.Texture2D.MostDetailedMip = 0;
 			textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
-			d3d.Device->CreateShaderResourceView(resources.sceneObjResources[i].diffuseTex.texture, &textureSRVDesc, handle);
+			d3d.Device->CreateShaderResourceView(resources.Textures[resources.sceneObjResources[i].diffuseTexKey].texture, &textureSRVDesc, handle);
 			handle.ptr += handleIncrement;
 
 			// Create the normals texture SRV
@@ -1371,7 +1377,7 @@ namespace DXR
 			normalsSRVDesc.Texture2D.MostDetailedMip = 0;
 			normalsSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
-			d3d.Device->CreateShaderResourceView(resources.sceneObjResources[i].normalTex.texture, &normalsSRVDesc, handle);
+			d3d.Device->CreateShaderResourceView(resources.Textures[resources.sceneObjResources[i].normalTexKey].texture, &normalsSRVDesc, handle);
 			handle.ptr += handleIncrement;
 		}
 	}

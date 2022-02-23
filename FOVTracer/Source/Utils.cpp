@@ -214,8 +214,8 @@ namespace Utils
 	*/
 	TextureInfo LoadTexture(std::string filepath, D3D12Resources& resources)
 	{
-		if (resources.Textures.count(filepath) > 0)
-			return resources.Textures.at(filepath);
+		//if (resources.Textures.count(filepath) > 0)
+		//	return resources.Textures.at(filepath).textureInfo;
 
 		TextureInfo result = {};
 
@@ -237,7 +237,9 @@ namespace Utils
 		FormatTexture(result, pixels);
 		stbi_image_free(pixels);
 
-		resources.Textures.insert_or_assign(filepath, result);
+		//TextureResource newTexture;
+		//newTexture.textureInfo = result;
+		//resources.Textures.insert_or_assign(filepath, newTexture);
 
 		return result;
 	}

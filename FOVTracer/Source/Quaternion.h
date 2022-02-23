@@ -63,17 +63,10 @@ public:
 	}
 
 	friend Vector3f operator*(Quaternion& q, Vector3f v) {
+		Vector3f t = (q.v * 2.0f).Cross(v);
+		Vector3f p = v + t * q.s + q.v.Cross(t);
 
-		//TODO: FIGURE OUT WHY NO WORK WITH VECTOR3F!!
-
-		DirectX::XMFLOAT3 vd = DirectX::XMFLOAT3(v.X, v.Y, v.Z);
-		DirectX::XMFLOAT3 qd = DirectX::XMFLOAT3(q.v.X, q.v.Y, q.v.Z);
-
-		DirectX::XMFLOAT3 t = DXFloat3Cross(DXFloat3MulScalar(qd, 2.0f), vd);
-		DirectX::XMFLOAT3 p = DXFloat3AddFloat3(DXFloat3AddFloat3(vd, DXFloat3MulScalar(t, q.s)), DXFloat3Cross(qd, t));
-		//Vector3f t = (q.v * 2.0f).Cross(v);
-		//Vector3f p = v + t * q.s + q.v.Cross(t);
-		return Vector3f(p.x, p.y, p.z);
+		return p;
 	}
 
 	Quaternion& operator=(Quaternion q) {

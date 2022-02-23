@@ -1,5 +1,11 @@
 #include "pch.h"
 #include "Input.h"
+#include "Log.h"
+
+Input::Input()
+{
+	PrimaryScreenSize = Vector2f(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+}
 
 void Input::OnFrameEnd()
 {
@@ -13,7 +19,18 @@ void Input::OnMouseMove(int CurrentPosX, int CurrentPosY)
 	MousePos = NewPos;
 }
 
+void Input::UpdateMouseInfo()
+{
+	POINT CursorPos;
+	GetCursorPos(&CursorPos);
+
+	MousePos = PrimaryScreenSize * 0.5f;
+	MouseDelta = Vector2f(CursorPos.x - MousePos.X, CursorPos.y - MousePos.Y);
+
+	SetCursorPos(MousePos.X, MousePos.Y);
+}
+
 uint8_t Input::IsKeyDown(KeyCode Code)
 {
-	return GetKeyState(Code) & 0x8000 ? 1u : 0u;
+	return GetAsyncKeyState(Code) & 0x8000 ? 1u : 0u;
 }

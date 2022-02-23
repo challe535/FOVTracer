@@ -85,16 +85,31 @@ void Tracer::AddObject(SceneObject& SceneObj, uint32_t Index)
 {
 	Resources.sceneObjResources.emplace_back();
 
+	Resources.sceneObjResources[Index].diffuseTexKey = SceneObj.Mesh.MeshMaterial.TexturePath;
+	Resources.sceneObjResources[Index].normalTexKey = SceneObj.Mesh.MeshMaterial.NormalMapPath;
+
 	D3DResources::Create_Vertex_Buffer(D3D, Resources, SceneObj, Index);
 	D3DResources::Create_Index_Buffer(D3D, Resources, SceneObj, Index);
 
-	//TODO: Return reference or maybe just look up the resource in Resources instead of returning copy??
-	TextureInfo DiffuseTex = Utils::LoadTexture(SceneObj.Mesh.MeshMaterial.TexturePath, Resources);
-	TextureInfo NormalsTex = Utils::LoadTexture(SceneObj.Mesh.MeshMaterial.NormalMapPath, Resources);
+	TextureResource DiffuseTexRes = LoadTexture(SceneObj.Mesh.MeshMaterial.TexturePath);
+	SceneObj.Mesh.MeshMaterial.TextureResolution = Vector2f(static_cast<float>(DiffuseTexRes.textureInfo.width), static_cast<float>(DiffuseTexRes.textureInfo.height));
 
-	SceneObj.Mesh.MeshMaterial.TextureResolution = Vector2f(static_cast<float>(DiffuseTex.width), static_cast<float>(DiffuseTex.height));
+	LoadTexture(SceneObj.Mesh.MeshMaterial.NormalMapPath);
 
-	D3DResources::Create_Texture(D3D, Resources.sceneObjResources[Index].diffuseTex, DiffuseTex);
-	D3DResources::Create_Texture(D3D, Resources.sceneObjResources[Index].normalTex, NormalsTex);
 	D3DResources::Create_Material_CB(D3D, Resources, SceneObj.Mesh.MeshMaterial, Index);
+}
+
+TextureResource Tracer::LoadTexture(std::string TextureName)
+{
+	if (Resources.Textures.count(TextureName) > 0)
+		return Resources.Textures.at(TextureName);
+
+	TextureResource NewTexture;
+
+	NewTexture.textureInfo = Utils::LoadTexture(TextureName, Resources);
+	D3DResources::Create_Texture(D3D, NewTexture, NewTexture.textureInfo);
+
+	Resources.Textures.insert_or_assign(TextureName, NewTexture);
+
+	return NewTexture;
 }

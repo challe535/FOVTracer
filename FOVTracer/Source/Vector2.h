@@ -13,6 +13,7 @@ public:
 	static Vector2<Type> One();
 	static Vector2<Type> Zero();
 
+	Vector2<Type> operator*(Type s);
 	friend Vector2<Type> operator+(Vector2<Type> v1, Vector2<Type> v2);
 	friend Vector2<Type> operator-(Vector2<Type> v1, Vector2<Type> v2);
 	friend Vector2<Type> operator-(Vector2<Type> v);
@@ -45,6 +46,12 @@ template<class Type>
 Vector2<Type> Vector2<Type>::Zero()
 {
 	return Vector2<Type>();
+}
+
+template<class Type>
+Vector2<Type> Vector2<Type>::operator*(Type s)
+{
+	return Vector2<Type>(X * s, Y * s);
 }
 
 template<class Type>

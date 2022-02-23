@@ -27,7 +27,12 @@
 
 #include "Common.hlsl"
 
-// ---[ Closest Hit Shader ]---
+struct PointLightInfo
+{
+    float3 position;
+    float3 color;
+    float luminocity;
+};
 
 bool IsShadowed(float3 lightDir, float3 origin, float maxDist)
 {
@@ -36,7 +41,6 @@ bool IsShadowed(float3 lightDir, float3 origin, float maxDist)
     ray.Direction = lightDir;
     ray.TMin = 0.01;
     ray.TMax = maxDist;
-    bool hit = true;
 
     ShadowHitInfo shadowPayload;
     shadowPayload.isHit = false;
@@ -61,6 +65,31 @@ float3 CalcMappedNormal(VertexAttributes vertex, int2 coord)
     return mapping.x * vertex.tangent + mapping.y * vertex.binormal + mapping.z * vertex.normal;
 }
 
+//float3 CalcOpacityColor()
+//{
+//    RayDesc ray;
+//    ray.Origin = WorldRayOrigin() + WorldRayDirection() * RayTCurrent() * 1.05f;
+//    ray.Direction = WorldRayDirection();
+//    ray.TMin = 0.01;
+//    ray.TMax = 100000;
+
+//    HitInfo payload;
+//    payload.ShadedColorAndHitT = float4(0, 0, 0, 0);
+
+//    TraceRay(
+//		SceneBVH,
+//		RAY_FLAG_NONE,
+//		0xFF,
+//		1,
+//		1,
+//		1,
+//		ray,
+//		payload
+//	);
+
+//    return payload.ShadedColorAndHitT.rgb;
+//}
+
 [shader("closesthit")]
 void ClosestHit(inout HitInfo payload, Attributes attrib)
 {
@@ -68,29 +97,40 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
 	float3 barycentrics = float3((1.0f - attrib.uv.x - attrib.uv.y), attrib.uv.x, attrib.uv.y);
 	VertexAttributes vertex = GetVertexAttributes(triangleIndex, barycentrics);
 
-	const float3 lightPos = float3(0, 100, 0);
+    PointLightInfo plInfo;
+
+    plInfo.position = float3(0, 700 + 100 * sin(elapsedTimeSeconds), 0);
+    plInfo.color = float3(0.9, 0.9, 1.0);
+    plInfo.luminocity = 1000000.0;
 
     int2 coord = floor(frac(vertex.uv) * material.textureResolution.xy);
   
-	float3 diffuse = float3(1, 1, 0);
+	float4 diffuse = float4(1, 1, 0, 1);
     if (material.hasDiffuseTexture)
     {
-        diffuse = albedo.Load(int3(coord, 0)).rgb;
+        diffuse = albedo.Load(int3(coord, 0));
     }
 
-    //float3 newnormal = float3(0, 0, 0);
     if (material.hasNormalMap)
     {
         vertex.normal = CalcMappedNormal(vertex, coord);
     }
 
     float3 worldOrigin = WorldRayOrigin() + RayTCurrent() * WorldRayDirection() + vertex.normal * 0.001f;
-    float3 lightV = lightPos - worldOrigin;
+    float3 lightV = plInfo.position - worldOrigin;
     float3 lightDir = normalize(lightV);
+    float distToLight = length(lightV);
 
-    float factor = IsShadowed(lightDir, worldOrigin, length(lightV)) ? 0.3 : 1.0;
+    float ambient = 0.3;
 
-    float3 color = factor * diffuse * max(dot(lightDir, vertex.normal), 0.0);
+    float factor = IsShadowed(lightDir, worldOrigin, distToLight) ? ambient : 1.0;
+
+    //if (diffuse.a < 0.999)
+    //{
+    //    diffuse.rgb = diffuse.rgb * diffuse.a + CalcOpacityColor() * (1.0 - diffuse.a);
+    //}
+
+    float3 color = factor * diffuse.rgb * max(dot(lightDir, vertex.normal), ambient) * plInfo.color * plInfo.luminocity / pow(distToLight, 2);
 
     payload.ShadedColorAndHitT = float4(color, RayTCurrent());
 	//payload.ShadedColorAndHitT = float4(vertex.uv, 0, RayTCurrent());

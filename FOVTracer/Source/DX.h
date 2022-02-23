@@ -65,6 +65,8 @@ struct ViewCB
 	DirectX::XMFLOAT4 viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(0, 0.f, 0.f, 0.f);
 	DirectX::XMFLOAT2 resolution = DirectX::XMFLOAT2(10, 10);
 	uint32_t sqrtSamplesPerPixel = 3;
+
+	float elapsedTimeSeconds = 0.f;
 };
 
 struct D3D12Global
@@ -134,6 +136,7 @@ struct D3D12BufferCreateInfo
 
 struct TextureResource
 {
+	TextureInfo textureInfo;
 	ID3D12Resource* texture = nullptr;
 	ID3D12Resource* textureUploadResource = nullptr;
 };
@@ -149,8 +152,12 @@ struct SceneObjectResource
 	MaterialCB materialCBData;
 	UINT8* materialCBStart = nullptr;
 
-	TextureResource diffuseTex;
-	TextureResource normalTex;
+
+	std::string diffuseTexKey;
+	std::string normalTexKey;
+
+	//TextureResource diffuseTex;
+	//TextureResource normalTex;
 };
 
 struct D3D12Resources
@@ -158,7 +165,7 @@ struct D3D12Resources
 	ID3D12Resource* DXROutput;
 
 	std::vector<SceneObjectResource> sceneObjResources;
-	std::unordered_map<std::string, TextureInfo> Textures;
+	std::unordered_map<std::string, TextureResource> Textures;
 
 	ID3D12Resource* viewCB = nullptr;
 	ViewCB viewCBData;

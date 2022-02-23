@@ -35,8 +35,8 @@ namespace Utils
 	struct SFallbackTexture
 	{
 		UINT8* texture;
-		UINT32 width = 512;
-		UINT32 height = 512;
+		UINT32 width = 256;
+		UINT32 height = 256;
 		UINT32 stride = 4;
 	};
 	static SFallbackTexture* FallbackTexture = new SFallbackTexture();

@@ -20,11 +20,10 @@ public:
 	static Vector3<Type> One();
 	static Vector3<Type> Zero();
 
-	//Vector3<Type>& operator=(Vector3<Type> other);
-	Vector3<Type>& operator*(Type s);
-	Vector3<Type>& operator-();
-	Vector3<Type>& operator+(Vector3<Type> v);
-	Vector3<Type>& operator-(Vector3<Type> v);
+	Vector3<Type> operator*(Type s);
+	Vector3<Type> operator-();
+	Vector3<Type> operator+(Vector3<Type> v);
+	Vector3<Type> operator-(Vector3<Type> v);
 	
 };
 
@@ -103,44 +102,31 @@ Type Vector3<Type>::Length()
 }
 
 template<class Type>
-Vector3<Type>& Vector3<Type>::operator*(Type s)
+Vector3<Type> Vector3<Type>::operator*(Type s)
 {
-	X *= s;
-	Y *= s;
-	Z *= s;
-	return *this;
+	return Vector3<Type>(X * s, Y * s, Z * s);
 }
 
 template<class Type>
 Vector3<Type> operator*(Type s, Vector3<Type> v)
 {
-	v.X *= s;
-	v.Y *= s;
-	v.Z *= s;
-
-	return v;
+	return v * s;
 }
 
 template<class Type>
-Vector3<Type>& Vector3<Type>::operator-()
+Vector3<Type> Vector3<Type>::operator-()
 {
-	X = -X;
-	Y = -Y;
-	Z = -Z;
-	return *this;
+	return Vector3<Type>(-X, -Y, -Z);
 }
 
 template<class Type>
-Vector3<Type>& Vector3<Type>::operator+(Vector3<Type> v)
+Vector3<Type> Vector3<Type>::operator+(Vector3<Type> v)
 {
-	X += v.X;
-	Y += v.Y;
-	Z += v.Z;
-	return *this;
+	return Vector3<Type>(X + v.X, Y + v.Y, Z + v.Z);
 }
 
 template<class Type>
-Vector3<Type>& Vector3<Type>::operator-(Vector3<Type> v)
+Vector3<Type> Vector3<Type>::operator-(Vector3<Type> v)
 {
 	return *this + (-v);
 }

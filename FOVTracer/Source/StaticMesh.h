@@ -10,6 +10,7 @@ struct Material
 	std::string Name = "DefaultMaterial";
 	std::string TexturePath = "";
 	std::string NormalMapPath = "";
+	std::string OpacityMapPath = "";
 	Vector2f  TextureResolution = Vector2f(512, 512);
 };
 
