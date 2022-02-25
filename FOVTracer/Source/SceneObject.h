@@ -10,6 +10,8 @@ public:
 
 	Transform Transform;
 	StaticMesh Mesh;
+	bool IsOpaque = true;
+
 
 	~SceneObject();
 

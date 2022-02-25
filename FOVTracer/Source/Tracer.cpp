@@ -37,6 +37,7 @@ void Tracer::Init(TracerConfigInfo config, HWND& window, Scene& scene)
 	DXR::Create_Closest_Hit_Program(D3D, DXR, ShaderCompiler);
 	DXR::Create_Shadow_Hit_Program(D3D, DXR, ShaderCompiler);
 	DXR::Create_Shadow_Miss_Program(D3D, DXR, ShaderCompiler);
+	DXR::Add_Alpha_AnyHit_Program(D3D, DXR, ShaderCompiler);
 	DXR::Create_Pipeline_State_Object(D3D, DXR);
 	DXR::Create_Shader_Table(D3D, DXR, Resources);
 
@@ -93,6 +94,7 @@ void Tracer::AddObject(SceneObject& SceneObj, uint32_t Index)
 
 	TextureResource DiffuseTexRes = LoadTexture(SceneObj.Mesh.MeshMaterial.TexturePath);
 	SceneObj.Mesh.MeshMaterial.TextureResolution = Vector2f(static_cast<float>(DiffuseTexRes.textureInfo.width), static_cast<float>(DiffuseTexRes.textureInfo.height));
+	SceneObj.IsOpaque = !DiffuseTexRes.textureInfo.hasAlpha;
 
 	LoadTexture(SceneObj.Mesh.MeshMaterial.NormalMapPath);
 

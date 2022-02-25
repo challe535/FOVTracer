@@ -243,6 +243,7 @@ namespace D3D12
 		desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 		desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 		desc.SampleDesc.Count = 1;
+		desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
 
 		// Create the swap chain
 		IDXGISwapChain1* swapChain;
@@ -312,7 +313,7 @@ namespace D3D12
 	 */
 	void Present(D3D12Global& d3d)
 	{
-		HRESULT hr = d3d.SwapChain->Present(d3d.Vsync, 0);
+		HRESULT hr = d3d.SwapChain->Present(d3d.Vsync, !d3d.Vsync ? DXGI_PRESENT_ALLOW_TEARING : 0);
 		if (FAILED(hr))
 		{
 			hr = d3d.Device->GetDeviceRemovedReason();
@@ -747,7 +748,7 @@ namespace DXR
 			geometryDesc.Triangles.IndexFormat = resources.sceneObjResources[i].indexBufferView.Format;
 			geometryDesc.Triangles.IndexCount = static_cast<UINT>(model.Indices.size());
 			geometryDesc.Triangles.Transform3x4 = 0;
-			geometryDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+			geometryDesc.Flags = scene.SceneObjects[i].IsOpaque ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : D3D12_RAYTRACING_GEOMETRY_FLAG_NO_DUPLICATE_ANYHIT_INVOCATION;
 
 			geometryDescs.push_back(geometryDesc);
 		}
@@ -965,6 +966,16 @@ namespace DXR
 	}
 
 	/**
+	* Load and create the DXR Closest Hit program and root signature.
+	*/
+	void Add_Alpha_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler)
+	{
+		// Load and compile the Closest Hit shader
+		dxr.hit.ahs = RtProgram(D3D12ShaderInfo(L"Shaders\\AlphaAnyHit.hlsl", L"", L"lib_6_3"));
+		D3DShaders::Compile_Shader(shaderCompiler, dxr.hit.ahs);
+	}
+
+	/**
 	* Load and create the DXR Shadow Hit program and root signature.
 	*/
 	void Create_Shadow_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler)
@@ -982,7 +993,7 @@ namespace DXR
 	{
 		UINT index = 0;
 		std::vector<D3D12_STATE_SUBOBJECT> subobjects;
-		subobjects.resize(13);
+		subobjects.resize(14);
 
 		// Add state subobject for the Shadow Miss shader
 		D3D12_EXPORT_DESC smsExportDesc = {};
@@ -1085,9 +1096,28 @@ namespace DXR
 
 		subobjects[index++] = chs;
 
+		// Add state subobject for the Alpha Any Hit shader
+		D3D12_EXPORT_DESC ahsExportDesc = {};
+		ahsExportDesc.Name = L"AlphaHit";
+		ahsExportDesc.ExportToRename = L"AlphaAnyHit";
+		ahsExportDesc.Flags = D3D12_EXPORT_FLAG_NONE;
+
+		D3D12_DXIL_LIBRARY_DESC	ahsLibDesc = {};
+		ahsLibDesc.DXILLibrary.BytecodeLength = dxr.hit.ahs.blob->GetBufferSize();
+		ahsLibDesc.DXILLibrary.pShaderBytecode = dxr.hit.ahs.blob->GetBufferPointer();
+		ahsLibDesc.NumExports = 1;
+		ahsLibDesc.pExports = &ahsExportDesc;
+
+		D3D12_STATE_SUBOBJECT ahs = {};
+		ahs.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
+		ahs.pDesc = &ahsLibDesc;
+
+		subobjects[index++] = ahs;
+
 		// Add a state subobject for the hit group
 		D3D12_HIT_GROUP_DESC hitGroupDesc = {};
 		hitGroupDesc.ClosestHitShaderImport = L"ClosestHit_76";
+		hitGroupDesc.AnyHitShaderImport = L"AlphaHit";
 		hitGroupDesc.HitGroupExport = L"HitGroup";
 
 		D3D12_STATE_SUBOBJECT hitGroup = {};
@@ -1098,7 +1128,7 @@ namespace DXR
 
 		// Add a state subobject for the shader payload configuration
 		D3D12_RAYTRACING_SHADER_CONFIG shaderDesc = {};
-		shaderDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT4); // RGB and HitT
+		shaderDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT4) + 10 * 5 * sizeof(float);
 		shaderDesc.MaxAttributeSizeInBytes = D3D12_RAYTRACING_MAX_ATTRIBUTE_SIZE_IN_BYTES;
 
 		D3D12_STATE_SUBOBJECT shaderConfigObject = {};

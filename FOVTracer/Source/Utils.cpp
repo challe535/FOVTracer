@@ -237,9 +237,9 @@ namespace Utils
 		FormatTexture(result, pixels);
 		stbi_image_free(pixels);
 
-		//TextureResource newTexture;
-		//newTexture.textureInfo = result;
-		//resources.Textures.insert_or_assign(filepath, newTexture);
+		if (!filepath.compare(GetResourcePath("sponza/textures/sponza_thorn_diff.png")) ||
+			!filepath.compare(GetResourcePath("sponza/textures/vase_plant.png")))
+			result.hasAlpha = true;
 
 		return result;
 	}
@@ -249,6 +249,8 @@ namespace Utils
 	*/
 	void FormatTexture(TextureInfo& info, UINT8* pixels)
 	{
+		const 
+
 		const UINT numPixels = (info.width * info.height);
 		const UINT oldStride = info.stride;
 		const UINT oldSize = (numPixels * info.stride);
@@ -262,7 +264,7 @@ namespace Utils
 			info.pixels[i * newStride] = pixels[i * oldStride];		// R
 			info.pixels[i * newStride + 1] = pixels[i * oldStride + 1];	// G
 			info.pixels[i * newStride + 2] = pixels[i * oldStride + 2];	// B
-			info.pixels[i * newStride + 3] = 0xFF;							// A (always 1)
+			info.pixels[i * newStride + 3] = pixels[i * oldStride + 3];	// A
 		}
 
 		info.stride = newStride;

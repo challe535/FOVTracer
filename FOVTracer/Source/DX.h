@@ -50,6 +50,7 @@ struct TextureInfo
 	int height = 0;
 	int stride = 0;
 	int offset = 0;
+	bool hasAlpha = false;
 };
 
 struct MaterialCB
@@ -151,6 +152,7 @@ struct SceneObjectResource
 	ID3D12Resource* materialCB = nullptr;
 	MaterialCB materialCBData;
 	UINT8* materialCBStart = nullptr;
+
 
 
 	std::string diffuseTexKey;
@@ -355,6 +357,7 @@ namespace DXR
 	void Create_DXR_Output(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Shadow_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Create_Shadow_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
+	void Add_Alpha_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 
 	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources);
 
