@@ -41,6 +41,19 @@ void Tracer::Init(TracerConfigInfo config, HWND& window, Scene& scene)
 	DXR::Create_Pipeline_State_Object(D3D, DXR);
 	DXR::Create_Shader_Table(D3D, DXR, Resources);
 
+	D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle = Resources.descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle = Resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+
+	UINT HeapSize = DXR::Get_Desc_Heap_Size(D3D, Resources, scene);
+
+	CPUHandle.ptr += HeapSize;
+	GPUHandle.ptr += HeapSize;
+
+	ImGui_ImplDX12_Init(D3D.Device, 2,
+		DXGI_FORMAT_R8G8B8A8_UNORM, Resources.descriptorHeap,
+		CPUHandle,
+		GPUHandle);
+
 	D3D.CmdList->Close();
 	ID3D12CommandList* pGraphicsList = { D3D.CmdList };
 	D3D.CmdQueue->ExecuteCommandLists(1, &pGraphicsList);

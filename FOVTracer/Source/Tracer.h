@@ -22,7 +22,6 @@ public:
 	void Render();
 	void Cleanup();
 
-
 	D3D12Global D3D = {};
 	D3D12Resources Resources = {};
 protected:

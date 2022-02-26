@@ -1294,13 +1294,21 @@ namespace DXR
 		dxr.shaderTable->Unmap(0, nullptr);
 	}
 
+	UINT Get_Desc_Heap_Size(D3D12Global& d3d, D3D12Resources& resources, Scene& scene)
+	{
+		UINT NumDescriptors = DX12Constants::descriptors_per_shader * static_cast<UINT>(resources.sceneObjResources.size());
+		UINT handleIncrement = d3d.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		return handleIncrement * NumDescriptors;
+	}
+
 	/**
 	* Create the DXR descriptor heap for CBVs, SRVs, and the output UAV.
 	*/
 	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, Scene& scene)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-		desc.NumDescriptors = DX12Constants::descriptors_per_shader * static_cast<UINT>(resources.sceneObjResources.size());
+		desc.NumDescriptors = DX12Constants::descriptors_per_shader * static_cast<UINT>(resources.sceneObjResources.size()) + 1; //+1 for ui, bad change later.
 		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
@@ -1465,8 +1473,10 @@ namespace DXR
 		d3d.CmdList->ResourceBarrier(2, OutputBarriers);
 
 		ID3D12DescriptorHeap* ppHeaps[1] = {resources.descriptorHeap};
-		d3d.CmdList->SetDescriptorHeaps(1, ppHeaps);
+		d3d.CmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
+		//UI
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), d3d.CmdList);
 
 		// Dispatch rays
 		D3D12_DISPATCH_RAYS_DESC desc = {};

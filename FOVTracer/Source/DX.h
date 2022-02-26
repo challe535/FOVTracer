@@ -3,6 +3,8 @@
 #include "ResourceManagement.h"
 #include "Scene.h"
 
+#include "imgui/imgui_impl_dx12.h"
+
 #include <DirectXMath.h>
 #include <DirectXPackedVector.h>
 
@@ -157,9 +159,6 @@ struct SceneObjectResource
 
 	std::string diffuseTexKey;
 	std::string normalTexKey;
-
-	//TextureResource diffuseTex;
-	//TextureResource normalTex;
 };
 
 struct D3D12Resources
@@ -335,7 +334,7 @@ namespace D3DResources
 	void Create_BackBuffer_RTV(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_View_CB(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Material_CB(D3D12Global& d3d, D3D12Resources& resources, const Material& material, uint32_t index);
-	void Create_Descriptor_Heaps(D3D12Global& d3d, D3D12Resources& resources);
+	void Create_Descriptor_Heaps(D3D12Global& d3d, D3D12Resources& resources); //Creates RTV heap
 
 	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera);
 
@@ -353,11 +352,13 @@ namespace DXR
 	void Create_Closest_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Create_Pipeline_State_Object(D3D12Global& d3d, DXRGlobal& dxr);
 	void Create_Shader_Table(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources);
-	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, Scene& scene);
+	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, Scene& scene); // Creates raytracing shader heap
 	void Create_DXR_Output(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Shadow_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Create_Shadow_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Add_Alpha_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
+
+	UINT Get_Desc_Heap_Size(D3D12Global& d3d, D3D12Resources& resources, Scene& scene);
 
 	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources);
 

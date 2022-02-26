@@ -3,6 +3,9 @@
 #include "Core.h"
 #include "Tracer.h"
 #include "Input.h"
+#include "imgui/imgui.h"
+
+#define ImTextureID ImU64
 
 class Application
 {
@@ -37,5 +40,7 @@ private:
 	HWND Window;
 	Tracer RayTracer;
 	Scene RayScene;
+	ImGuiIO IO;
+	ImGuiContext* UIContext;
 };
 

@@ -3,8 +3,6 @@
 #include "AppWindow.h"
 #include "Log.h"
 
-#include "imgui/imgui.h"
-#include "imgui/imgui_impl_dx12.h"
 #include "imgui/imgui_impl_win32.h"
 
 #include <stdlib.h>
@@ -55,19 +53,17 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 	Config.Instance = instance;
 	Config.Vsync = false;
 
-	RayTracer.Init(Config, Window, RayScene);
 
 	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	UIContext = ImGui::CreateContext();
+	ImGui::SetCurrentContext(UIContext);
+	IO = ImGui::GetIO(); (void)IO;
 
 	ImGui::StyleColorsDark();
 
 	ImGui_ImplWin32_Init(Window);
-	ImGui_ImplDX12_Init(RayTracer.D3D.Device, 2,
-		DXGI_FORMAT_R8G8B8A8_UNORM, RayTracer.Resources.descriptorHeap,
-		RayTracer.Resources.descriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-		RayTracer.Resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+	RayTracer.Init(Config, Window, RayScene);
 }
 
 void Application::Run()
@@ -90,11 +86,11 @@ void Application::Run()
 			DispatchMessage(&msg);
 		}
 
-		if (GetFocus() == Window)
-		{
-			ShowCursor(false);
-			InputHandler.UpdateMouseInfo();
-		}
+		//if (GetFocus() == Window)
+		//{
+		//	ShowCursor(false);
+		//	InputHandler.UpdateMouseInfo();
+		//}
 
 		//App specific code goes here
 		//Feed scene into tracer and tell it to trace the scene
@@ -117,6 +113,21 @@ void Application::Run()
 		SceneCamera.Position = SceneCamera.Position + CameraMove * DeltaTime * CameraSpeed;
 
 		RayTracer.Update(RayScene);
+
+		//// --- Rendering ---
+
+		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+
+		bool opened = ImGui::Begin("Render Time", nullptr, ImGuiWindowFlags_None);
+		if (opened)
+		{
+			ImGui::Text("Frame rate: %.3f ms", FpsRunningAverage);
+		}
+		ImGui::End();
+
+		ImGui::Render();
 		RayTracer.Render();
 
 		auto const FrameEnd = std::chrono::high_resolution_clock::now();
@@ -134,21 +145,6 @@ void Application::Run()
 		{
 			CORE_TRACE("FpsRunning = {0}, FpsTrue = {1}, FpsCurrent = {2}", FpsRunningAverage, FpsTrueAverage, FrameFpsAverage);
 		}
-
-		//// --- UI ---
-
-		ImGui_ImplDX12_NewFrame();
-		ImGui_ImplWin32_NewFrame();
-		ImGui::NewFrame();
-
-		//bool opened = ImGui::Begin("Render Time", nullptr, ImGuiWindowFlags_None);
-		//if (opened)
-		//{
-		//	ImGui::Text("Frame rate: %.3f ms", FpsRunningAverage);
-		//}
-		//ImGui::End();
-
-		ImGui::Render();
 
 		InputHandler.OnFrameEnd();
 	}
