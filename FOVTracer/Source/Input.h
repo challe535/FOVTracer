@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Math.h"
+#include "imgui/imgui.h"
 
 typedef UINT_PTR KeyCode;
 
@@ -14,17 +15,25 @@ typedef UINT_PTR KeyCode;
 class Input
 {
 public:
-	Input();
+	Input(ImGuiIO& io) :
+		PrimaryScreenSize(Vector2f(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN))) 
+	{
+		IO = &io;
+	};
 
 	void OnFrameEnd();
-	void OnMouseMove(int CurrentPosX, int CurrentPosY);
 	void UpdateMouseInfo();
+	void SetCursorToCenter();
+	void SetCursorVisiblity(bool ShouldShow);
 
 	uint8_t IsKeyDown(KeyCode Code);
 
 	Vector2f MouseDelta;
 	Vector2f MousePos;
-
+	bool LockMouseToCenter = false;
 private:
 	Vector2f PrimaryScreenSize;
+	bool CursorVisible = true;
+
+	ImGuiIO* IO;
 };

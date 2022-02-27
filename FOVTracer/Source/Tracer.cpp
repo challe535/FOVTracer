@@ -3,7 +3,8 @@
 #include "Log.h"
 #include "Utils.h"
 
-void Tracer::Init(TracerConfigInfo config, HWND& window, Scene& scene) 
+
+void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene) 
 {
 	D3D.Width = config.Width;
 	D3D.Height = config.Height;
@@ -41,18 +42,7 @@ void Tracer::Init(TracerConfigInfo config, HWND& window, Scene& scene)
 	DXR::Create_Pipeline_State_Object(D3D, DXR);
 	DXR::Create_Shader_Table(D3D, DXR, Resources);
 
-	D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle = Resources.descriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle = Resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();
-
-	UINT HeapSize = DXR::Get_Desc_Heap_Size(D3D, Resources, scene);
-
-	CPUHandle.ptr += HeapSize;
-	GPUHandle.ptr += HeapSize;
-
-	ImGui_ImplDX12_Init(D3D.Device, 2,
-		DXGI_FORMAT_R8G8B8A8_UNORM, Resources.descriptorHeap,
-		CPUHandle,
-		GPUHandle);
+	D3DResources::Create_UIHeap(D3D, Resources);
 
 	D3D.CmdList->Close();
 	ID3D12CommandList* pGraphicsList = { D3D.CmdList };
@@ -60,15 +50,25 @@ void Tracer::Init(TracerConfigInfo config, HWND& window, Scene& scene)
 
 	D3D12::WaitForGPU(D3D);
 	D3D12::Reset_CommandList(D3D);
+
+
+	D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle = Resources.uiHeap->GetCPUDescriptorHandleForHeapStart();
+	D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle = Resources.uiHeap->GetGPUDescriptorHandleForHeapStart();
+
+	ImGui_ImplDX12_Init(D3D.Device, 2,
+		DXGI_FORMAT_R8G8B8A8_UNORM, Resources.uiHeap,
+		CPUHandle,
+		GPUHandle);
+
 #else
 	CORE_WARN("Raytracing is disabled! No rendering will happen until \"DXR_ENALBED\" is set to 1 in DX.h");
 #endif
 }
 
-void Tracer::Update(Scene& scene)
+void Tracer::Update(Scene& scene, TracerParameters& params)
 {
 #if DXR_ENABLED
-	D3DResources::Update_View_CB(D3D, Resources, scene.SceneCamera);
+	D3DResources::Update_View_CB(D3D, Resources, scene.SceneCamera, params.SqrtSamplesPerPixel);
 #endif
 }
 

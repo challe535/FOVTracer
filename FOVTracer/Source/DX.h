@@ -67,7 +67,7 @@ struct ViewCB
 	DirectX::XMMATRIX view = DirectX::XMMatrixIdentity();
 	DirectX::XMFLOAT4 viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(0, 0.f, 0.f, 0.f);
 	DirectX::XMFLOAT2 resolution = DirectX::XMFLOAT2(10, 10);
-	uint32_t sqrtSamplesPerPixel = 3;
+	uint32_t sqrtSamplesPerPixel = 2;
 
 	float elapsedTimeSeconds = 0.f;
 };
@@ -174,6 +174,7 @@ struct D3D12Resources
 
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
 	ID3D12DescriptorHeap* descriptorHeap = nullptr;
+	ID3D12DescriptorHeap* uiHeap = nullptr;
 
 	UINT											rtvDescSize = 0;
 
@@ -335,8 +336,9 @@ namespace D3DResources
 	void Create_View_CB(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Material_CB(D3D12Global& d3d, D3D12Resources& resources, const Material& material, uint32_t index);
 	void Create_Descriptor_Heaps(D3D12Global& d3d, D3D12Resources& resources); //Creates RTV heap
+	void Create_UIHeap(D3D12Global& d3d, D3D12Resources& resources);
 
-	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera);
+	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, uint32_t sqrtSPP);
 
 	void Upload_Texture(D3D12Global& d3d, ID3D12Resource* destResource, ID3D12Resource* srcResource, const TextureInfo& texture);
 

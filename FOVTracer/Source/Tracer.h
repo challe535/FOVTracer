@@ -5,6 +5,11 @@
 
 #include <string>
 
+struct TracerParameters
+{
+	uint32_t SqrtSamplesPerPixel = 2;
+};
+
 struct TracerConfigInfo 
 {
 	int	Width = 640;
@@ -17,8 +22,8 @@ struct TracerConfigInfo
 class Tracer
 {
 public:
-	void Init(TracerConfigInfo config, HWND& window, Scene& scene);
-	void Update(Scene& scene);
+	void Init(TracerConfigInfo& config, HWND& window, Scene& scene);
+	void Update(Scene& scene, TracerParameters& params);
 	void Render();
 	void Cleanup();
 

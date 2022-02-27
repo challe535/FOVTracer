@@ -57,11 +57,12 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 	IMGUI_CHECKVERSION();
 	UIContext = ImGui::CreateContext();
 	ImGui::SetCurrentContext(UIContext);
-	IO = ImGui::GetIO(); (void)IO;
 
 	ImGui::StyleColorsDark();
 
 	ImGui_ImplWin32_Init(Window);
+
+	InputHandler = new Input(ImGui::GetIO());
 
 	RayTracer.Init(Config, Window, RayScene);
 }
@@ -70,11 +71,14 @@ void Application::Run()
 {
 	MSG msg = { 0 };
 
+	TracerParameters TraceParams;
+
 	float DeltaTime = 0.0f;
 	float FpsRunningAverage = 0.0f;
 	float FpsTrueAverage = 0.0f;
 
 	uint64_t FrameCount = 0;
+	bool LMouseClicked = false;
 
 	while (WM_QUIT != msg.message)
 	{
@@ -86,11 +90,10 @@ void Application::Run()
 			DispatchMessage(&msg);
 		}
 
-		//if (GetFocus() == Window)
-		//{
-		//	ShowCursor(false);
-		//	InputHandler.UpdateMouseInfo();
-		//}
+		if (InputHandler->IsKeyDown(VK_ESCAPE))
+			PostQuitMessage(0);
+
+		InputHandler->UpdateMouseInfo();
 
 		//App specific code goes here
 		//Feed scene into tracer and tell it to trace the scene
@@ -99,12 +102,29 @@ void Application::Run()
 
 		float MouseSensitivity = 0.3f;
 
-		SceneCamera.Orientation *= Quaternion(MouseSensitivity * DeltaTime * InputHandler.MouseDelta.X, SceneCamera.BaseUp);
-		SceneCamera.Orientation *= Quaternion(MouseSensitivity * DeltaTime * InputHandler.MouseDelta.Y, SceneCamera.BaseRight);
+		if (InputHandler->IsKeyDown(VK_LBUTTON))
+		{
+			if (!LMouseClicked)
+			{
+				InputHandler->MouseDelta = Vector2f(0, 0);
+				InputHandler->SetCursorToCenter();
+			}
+			InputHandler->SetCursorVisiblity(false);
+			InputHandler->LockMouseToCenter = true;
+			SceneCamera.Orientation *= Quaternion(MouseSensitivity * DeltaTime * InputHandler->MouseDelta.X, SceneCamera.BaseUp);
+			SceneCamera.Orientation *= Quaternion(MouseSensitivity * DeltaTime * InputHandler->MouseDelta.Y, SceneCamera.BaseRight);
+			LMouseClicked = true;
+		}
+		else
+		{
+			LMouseClicked = false;
+			InputHandler->LockMouseToCenter = false;
+			InputHandler->SetCursorVisiblity(true);
+		}
 
-		float CameraForwardMove = InputHandler.IsKeyDown(W_KEY) - InputHandler.IsKeyDown(S_KEY);
-		float CameraRightMove = InputHandler.IsKeyDown(D_KEY) - InputHandler.IsKeyDown(A_KEY);
-		float CameraUpMove = InputHandler.IsKeyDown(E_KEY) - InputHandler.IsKeyDown(Q_KEY);
+		float CameraForwardMove = InputHandler->IsKeyDown(W_KEY) - InputHandler->IsKeyDown(S_KEY);
+		float CameraRightMove = InputHandler->IsKeyDown(D_KEY) - InputHandler->IsKeyDown(A_KEY);
+		float CameraUpMove = InputHandler->IsKeyDown(E_KEY) - InputHandler->IsKeyDown(Q_KEY);
 
 		float CameraSpeed = 200.0f;
 
@@ -112,7 +132,7 @@ void Application::Run()
 
 		SceneCamera.Position = SceneCamera.Position + CameraMove * DeltaTime * CameraSpeed;
 
-		RayTracer.Update(RayScene);
+		RayTracer.Update(RayScene, TraceParams);
 
 		//// --- Rendering ---
 
@@ -124,6 +144,7 @@ void Application::Run()
 		if (opened)
 		{
 			ImGui::Text("Frame rate: %.3f ms", FpsRunningAverage);
+			ImGui::SliderInt("Samples per pixel", reinterpret_cast<int*>(&TraceParams.SqrtSamplesPerPixel), 0, 10);
 		}
 		ImGui::End();
 
@@ -146,7 +167,7 @@ void Application::Run()
 			CORE_TRACE("FpsRunning = {0}, FpsTrue = {1}, FpsCurrent = {2}", FpsRunningAverage, FpsTrueAverage, FrameFpsAverage);
 		}
 
-		InputHandler.OnFrameEnd();
+		InputHandler->OnFrameEnd();
 	}
 
 	Cleanup();
@@ -155,6 +176,8 @@ void Application::Run()
 void Application::Cleanup()
 {
 	ClipCursor(NULL);
+
+	if (InputHandler) delete InputHandler;
 
 	ImGui_ImplDX12_Shutdown();
 	ImGui_ImplWin32_Shutdown();

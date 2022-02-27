@@ -39,15 +39,15 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
   */
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
+		return true;
+
 	PAINTSTRUCT ps;
 	switch (message)
 	{
 	case WM_PAINT:
 		BeginPaint(hWnd, &ps);
 		EndPaint(hWnd, &ps);
-		break;
-	case WM_KEYUP:
-		if (wParam == VK_ESCAPE) PostQuitMessage(0);
 		break;
 	case WM_DESTROY:
 		PostQuitMessage(0);

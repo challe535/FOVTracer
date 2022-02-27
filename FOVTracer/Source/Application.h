@@ -11,7 +11,9 @@ class Application
 {
 
 public:
-	Application() {};
+	Application() 
+	{
+	};
 	Application(Application const&) = delete;
 	void operator=(Application const&) = delete;
 
@@ -33,14 +35,13 @@ public:
 	static Application& GetApplication() { static Application Instance; return Instance; };
 
 public:
-	Input InputHandler;
+	Input* InputHandler;
 	float ElapsedTimeS = 0.f;
 
 private:
-	HWND Window;
+	HWND Window = nullptr;
+	ImGuiContext* UIContext = nullptr;
 	Tracer RayTracer;
 	Scene RayScene;
-	ImGuiIO IO;
-	ImGuiContext* UIContext;
 };
 

@@ -641,6 +641,18 @@ namespace D3DResources
 		//resources.sceneObjResources[index].materialCB->Unmap(0, nullptr);
 	}
 
+	void Create_UIHeap(D3D12Global& d3d, D3D12Resources& resources)
+	{
+		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+		desc.NumDescriptors = 1;
+		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+		// Create the descriptor heap
+		HRESULT hr = d3d.Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&resources.uiHeap));
+		Utils::Validate(hr, L"Error: failed to create DXR CBV/SRV/UAV descriptor heap!");
+	}
+
 	/**
 	* Create the RTV descriptor heap.
 	*/
@@ -665,7 +677,7 @@ namespace D3DResources
 	/**
 	* Update the view constant buffer.
 	*/
-	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera)
+	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, uint32_t sqrtSPP)
 	{
 		DirectX::XMMATRIX view, invView;
 		DirectX::XMFLOAT3 eye, focus, up;
@@ -685,7 +697,7 @@ namespace D3DResources
 		resources.viewCBData.view = XMMatrixTranspose(invView);
 		resources.viewCBData.viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(eye.x, eye.y, eye.z, tanf(fov * 0.5f));
 		resources.viewCBData.resolution = DirectX::XMFLOAT2((float)d3d.Width, (float)d3d.Height);
-		//SamplesPerPixel set in struct directly right now...
+		resources.viewCBData.sqrtSamplesPerPixel = sqrtSPP;
 		resources.viewCBData.elapsedTimeSeconds = Application::GetApplication().ElapsedTimeS;
 
 		memcpy(resources.viewCBStart, &resources.viewCBData, sizeof(resources.viewCBData));
@@ -1308,7 +1320,7 @@ namespace DXR
 	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, Scene& scene)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-		desc.NumDescriptors = DX12Constants::descriptors_per_shader * static_cast<UINT>(resources.sceneObjResources.size()) + 1; //+1 for ui, bad change later.
+		desc.NumDescriptors = DX12Constants::descriptors_per_shader * static_cast<UINT>(resources.sceneObjResources.size()) + 1; //+1 for ui
 		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
@@ -1475,9 +1487,6 @@ namespace DXR
 		ID3D12DescriptorHeap* ppHeaps[1] = {resources.descriptorHeap};
 		d3d.CmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-		//UI
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), d3d.CmdList);
-
 		// Dispatch rays
 		D3D12_DISPATCH_RAYS_DESC desc = {};
 		desc.RayGenerationShaderRecord.StartAddress = dxr.shaderTable->GetGPUVirtualAddress();
@@ -1498,6 +1507,10 @@ namespace DXR
 		d3d.CmdList->SetPipelineState1(dxr.rtpso);
 		d3d.CmdList->DispatchRays(&desc);
 
+		//barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		//barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		//g_pd3dCommandList->ResourceBarrier(1, &barrier);
+
 		// Transition DXR output to a copy source
 		OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		OutputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
@@ -1514,6 +1527,27 @@ namespace DXR
 
 		// Wait for the transitions to complete
 		d3d.CmdList->ResourceBarrier(1, &OutputBarriers[0]);
+
+
+		//UI
+		D3D12_RESOURCE_BARRIER barrier = {};
+		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		barrier.Transition.pResource = d3d.BackBuffer[d3d.FrameIndex];
+		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		d3d.CmdList->ResourceBarrier(1, &barrier);
+
+		auto rtvHandle = resources.rtvHeap->GetCPUDescriptorHandleForHeapStart();
+		rtvHandle.ptr += resources.rtvDescSize * d3d.FrameIndex;
+
+		d3d.CmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, NULL);
+		d3d.CmdList->SetDescriptorHeaps(1, &resources.uiHeap);
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), d3d.CmdList);
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		d3d.CmdList->ResourceBarrier(1, &barrier);
 
 		// Submit the command list and wait for the GPU to idle
 		D3D12::Submit_CmdList(d3d);
