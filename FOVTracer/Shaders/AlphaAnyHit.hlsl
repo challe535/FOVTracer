@@ -25,6 +25,10 @@ void Swap(in Node n, out Node sn)
 [shader("anyhit")]
 void AlphaAnyHit(inout HitInfo payload, Attributes attrib)
 {
+    //Safe guard, shouldn't be needed since only non-opaques call any hit shaders
+    if (!material.hasTransparency)
+        return;
+
     uint triangleIndex = PrimitiveIndex();
     float3 barycentrics = float3((1.0f - attrib.uv.x - attrib.uv.y), attrib.uv.x, attrib.uv.y);
     VertexAttributes vertex = GetVertexAttributes(triangleIndex, barycentrics);
@@ -37,13 +41,15 @@ void AlphaAnyHit(inout HitInfo payload, Attributes attrib)
         diffuse = albedo.Load(int3(coord, 0));
     }
 
-    if (diffuse.a == 0.0)
+    float alpha = opacity.Load(int3(coord, 0)).x;
+
+    if (alpha == 0.0)
         IgnoreHit();
 
     Node n;
     n.depth = RayTCurrent();
-    n.transmit = 1.0 - diffuse.a;
-    n.color = diffuse.a * diffuse.rgb;
+    n.transmit = 1.0 - alpha;
+    n.color = alpha * diffuse.rgb;
 
     // 1 - pass BACK insertion
     [ unroll ]
@@ -56,8 +62,8 @@ void AlphaAnyHit(inout HitInfo payload, Attributes attrib)
     //    payload.node[0] = Merge(n, payload.node[0]);
 
     // this fragment was an occluder
-        if (diffuse.a == 1.0)
-            return;
+    if (alpha == 1.0)
+        return;
 
     // sufficient occlusion to cull nodes ?
     float transmit = 1.0;

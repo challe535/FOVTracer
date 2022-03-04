@@ -143,8 +143,9 @@ void Application::Run()
 		bool opened = ImGui::Begin("Render Time", nullptr, ImGuiWindowFlags_None);
 		if (opened)
 		{
-			ImGui::Text("Frame rate: %.3f ms", FpsRunningAverage);
-			ImGui::SliderInt("Samples per pixel", reinterpret_cast<int*>(&TraceParams.SqrtSamplesPerPixel), 0, 10);
+			ImGui::Text("Frame rate: %.3f fps", FpsRunningAverage);
+			ImGui::SliderInt("Sqrt spp", reinterpret_cast<int*>(&TraceParams.SqrtSamplesPerPixel), 0, 10);
+			ImGui::SliderFloat2("Foveal point", TraceParams.fovealCenter, 0.f, 1920.f);
 		}
 		ImGui::End();
 

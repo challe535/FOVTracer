@@ -627,6 +627,7 @@ namespace D3DResources
 		resources.sceneObjResources[index].materialCBData.resolution = DirectX::XMFLOAT4(material.TextureResolution.X, material.TextureResolution.Y, 0.f, 0.f);
 		resources.sceneObjResources[index].materialCBData.hasDiffuse = !material.TexturePath.empty() ? 1u : 0u;
 		resources.sceneObjResources[index].materialCBData.hasNormal = !material.NormalMapPath.empty() ? 1u : 0u;
+		resources.sceneObjResources[index].materialCBData.hasTransparency = !material.OpacityMapPath.empty() ? 1u : 0u;
 
 		Create_Constant_Buffer(d3d, &resources.sceneObjResources[index].materialCB, sizeof(MaterialCB));
 #if NAME_D3D_RESOURCES
@@ -677,7 +678,7 @@ namespace D3DResources
 	/**
 	* Update the view constant buffer.
 	*/
-	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, uint32_t sqrtSPP)
+	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, TracerParameters& params)
 	{
 		DirectX::XMMATRIX view, invView;
 		DirectX::XMFLOAT3 eye, focus, up;
@@ -697,7 +698,8 @@ namespace D3DResources
 		resources.viewCBData.view = XMMatrixTranspose(invView);
 		resources.viewCBData.viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(eye.x, eye.y, eye.z, tanf(fov * 0.5f));
 		resources.viewCBData.resolution = DirectX::XMFLOAT2((float)d3d.Width, (float)d3d.Height);
-		resources.viewCBData.sqrtSamplesPerPixel = sqrtSPP;
+		resources.viewCBData.sqrtSamplesPerPixel = params.SqrtSamplesPerPixel;
+		resources.viewCBData.fovealCenter = DirectX::XMFLOAT2(params.fovealCenter[0], params.fovealCenter[1]);
 		resources.viewCBData.elapsedTimeSeconds = Application::GetApplication().ElapsedTimeS;
 
 		memcpy(resources.viewCBStart, &resources.viewCBData, sizeof(resources.viewCBData));
@@ -760,7 +762,7 @@ namespace DXR
 			geometryDesc.Triangles.IndexFormat = resources.sceneObjResources[i].indexBufferView.Format;
 			geometryDesc.Triangles.IndexCount = static_cast<UINT>(model.Indices.size());
 			geometryDesc.Triangles.Transform3x4 = 0;
-			geometryDesc.Flags = scene.SceneObjects[i].IsOpaque ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : D3D12_RAYTRACING_GEOMETRY_FLAG_NO_DUPLICATE_ANYHIT_INVOCATION;
+			geometryDesc.Flags = !scene.SceneObjects[i].Mesh.HasTransparency ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : D3D12_RAYTRACING_GEOMETRY_FLAG_NO_DUPLICATE_ANYHIT_INVOCATION;
 
 			geometryDescs.push_back(geometryDesc);
 		}
@@ -921,7 +923,7 @@ namespace DXR
 		ranges[1].OffsetInDescriptorsFromTableStart = 2;
 
 		ranges[2].BaseShaderRegister = 0;
-		ranges[2].NumDescriptors = 5;
+		ranges[2].NumDescriptors = 6;
 		ranges[2].RegisterSpace = 0;
 		ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 		ranges[2].OffsetInDescriptorsFromTableStart = 3;
@@ -1306,12 +1308,24 @@ namespace DXR
 		dxr.shaderTable->Unmap(0, nullptr);
 	}
 
-	UINT Get_Desc_Heap_Size(D3D12Global& d3d, D3D12Resources& resources, Scene& scene)
+	void Create_Non_Shader_Visible_Heap(D3D12Global& d3d, D3D12Resources& resources)
 	{
-		UINT NumDescriptors = DX12Constants::descriptors_per_shader * static_cast<UINT>(resources.sceneObjResources.size());
-		UINT handleIncrement = d3d.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+		desc.NumDescriptors = 1;
+		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
-		return handleIncrement * NumDescriptors;
+		// Create the descriptor heap
+		HRESULT hr = d3d.Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&resources.cpuOnlyHeap));
+		Utils::Validate(hr, L"Error: failed to create DXR CBV/SRV/UAV descriptor heap!");
+
+		// Get the descriptor heap handle and increment size
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = resources.cpuOnlyHeap->GetCPUDescriptorHandleForHeapStart();
+
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+
+		d3d.Device->CreateUnorderedAccessView(resources.DXROutput, nullptr, &uavDesc, handle);
 	}
 
 	/**
@@ -1320,7 +1334,7 @@ namespace DXR
 	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, Scene& scene)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-		desc.NumDescriptors = DX12Constants::descriptors_per_shader * static_cast<UINT>(resources.sceneObjResources.size()) + 1; //+1 for ui
+		desc.NumDescriptors = DX12Constants::descriptors_per_shader * static_cast<UINT>(resources.sceneObjResources.size());
 		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
@@ -1331,7 +1345,6 @@ namespace DXR
 		// Get the descriptor heap handle and increment size
 		D3D12_CPU_DESCRIPTOR_HANDLE handle = resources.descriptorHeap->GetCPUDescriptorHandleForHeapStart();
 		UINT handleIncrement = d3d.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
 
 #if NAME_D3D_RESOURCES
 		resources.descriptorHeap->SetName(L"DXR Descriptor Heap");
@@ -1349,6 +1362,7 @@ namespace DXR
 			// 1 SRV for the vertex buffer
 			// 1 SRV for the diffuse texture
 			// 1 SRV for the normal map
+			// 1 SRV for the opacity map
 
 			// Create the ViewCB CBV
 			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
@@ -1429,6 +1443,17 @@ namespace DXR
 
 			d3d.Device->CreateShaderResourceView(resources.Textures[resources.sceneObjResources[i].normalTexKey].texture, &normalsSRVDesc, handle);
 			handle.ptr += handleIncrement;
+
+			// Create the opacity map SRV
+			D3D12_SHADER_RESOURCE_VIEW_DESC opacitySRVDesc = {};
+			opacitySRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			opacitySRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			opacitySRVDesc.Texture2D.MipLevels = 1;
+			opacitySRVDesc.Texture2D.MostDetailedMip = 0;
+			opacitySRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+			d3d.Device->CreateShaderResourceView(resources.Textures[resources.sceneObjResources[i].opacityTexKey].texture, &opacitySRVDesc, handle);
+			handle.ptr += handleIncrement;
 		}
 	}
 
@@ -1487,6 +1512,15 @@ namespace DXR
 		ID3D12DescriptorHeap* ppHeaps[1] = {resources.descriptorHeap};
 		d3d.CmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
+		auto gpuHandle = resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+		auto cpuHandle = resources.cpuOnlyHeap->GetCPUDescriptorHandleForHeapStart();
+
+		gpuHandle.ptr += 2 * d3d.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		
+		//Dont clear if using stochastic sampling method
+		const float ClearColor[4] = { 0, 0, 0, 0 };
+		d3d.CmdList->ClearUnorderedAccessViewFloat(gpuHandle, cpuHandle, resources.DXROutput, ClearColor, 0, NULL);
+
 		// Dispatch rays
 		D3D12_DISPATCH_RAYS_DESC desc = {};
 		desc.RayGenerationShaderRecord.StartAddress = dxr.shaderTable->GetGPUVirtualAddress();
@@ -1507,10 +1541,6 @@ namespace DXR
 		d3d.CmdList->SetPipelineState1(dxr.rtpso);
 		d3d.CmdList->DispatchRays(&desc);
 
-		//barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		//barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-		//g_pd3dCommandList->ResourceBarrier(1, &barrier);
-
 		// Transition DXR output to a copy source
 		OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		OutputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
@@ -1528,7 +1558,6 @@ namespace DXR
 		// Wait for the transitions to complete
 		d3d.CmdList->ResourceBarrier(1, &OutputBarriers[0]);
 
-
 		//UI
 		D3D12_RESOURCE_BARRIER barrier = {};
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -1540,7 +1569,7 @@ namespace DXR
 		d3d.CmdList->ResourceBarrier(1, &barrier);
 
 		auto rtvHandle = resources.rtvHeap->GetCPUDescriptorHandleForHeapStart();
-		rtvHandle.ptr += resources.rtvDescSize * d3d.FrameIndex;
+		rtvHandle.ptr += d3d.FrameIndex * resources.rtvDescSize;
 
 		d3d.CmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, NULL);
 		d3d.CmdList->SetDescriptorHeaps(1, &resources.uiHeap);

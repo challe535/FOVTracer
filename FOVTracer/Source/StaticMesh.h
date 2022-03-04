@@ -40,6 +40,7 @@ public:
 	bool HasTexcoords = false;
 	bool HasTangents = false;
 	bool HasBinormals = false;
+	bool HasTransparency = false;
 
 private:
 

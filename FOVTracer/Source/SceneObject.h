@@ -10,11 +10,8 @@ public:
 
 	Transform Transform;
 	StaticMesh Mesh;
-	bool IsOpaque = true;
-
 
 	~SceneObject();
-
 
 	bool LoadFromPath(const std::string& Path, bool GenNormals);
 

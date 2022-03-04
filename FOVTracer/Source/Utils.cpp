@@ -154,6 +154,17 @@ namespace Utils
 						Mat.NormalMapPath = parent_folder + std::string(path.C_Str());
 					}
 
+
+					if (pMat->GetTextureCount(aiTextureType_OPACITY) > 0)
+					{
+						SMesh.HasTransparency = true;
+
+						aiString path;
+						pMat->GetTexture(aiTextureType_OPACITY, 0, &path);
+
+						Mat.OpacityMapPath = parent_folder + std::string(path.C_Str());
+					}
+
 					SMesh.MeshMaterial = Mat;
 				}
 				else
@@ -236,10 +247,6 @@ namespace Utils
 
 		FormatTexture(result, pixels);
 		stbi_image_free(pixels);
-
-		if (!filepath.compare(GetResourcePath("sponza/textures/sponza_thorn_diff.png")) ||
-			!filepath.compare(GetResourcePath("sponza/textures/vase_plant.png")))
-			result.hasAlpha = true;
 
 		return result;
 	}

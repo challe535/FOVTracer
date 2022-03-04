@@ -13,4 +13,7 @@ namespace Math
 	{
 		return x < y ? y : x;
 	}
+
+	float sign(float x);
+
 }

@@ -26,7 +26,7 @@
 
 namespace DX12Constants
 {
-	constexpr uint32_t descriptors_per_shader = 8;
+	constexpr uint32_t descriptors_per_shader = 9;
 }
 
 static const D3D12_HEAP_PROPERTIES UploadHeapProperties =
@@ -45,6 +45,13 @@ static const D3D12_HEAP_PROPERTIES DefaultHeapProperties =
 	0, 0
 };
 
+
+struct TracerParameters
+{
+	uint32_t SqrtSamplesPerPixel = 2;
+	float fovealCenter[2] = { 0, 0 };
+};
+
 struct TextureInfo
 {
 	std::vector<UINT8> pixels;
@@ -52,7 +59,6 @@ struct TextureInfo
 	int height = 0;
 	int stride = 0;
 	int offset = 0;
-	bool hasAlpha = false;
 };
 
 struct MaterialCB
@@ -60,6 +66,7 @@ struct MaterialCB
 	DirectX::XMFLOAT4 resolution;
 	uint32_t hasDiffuse;
 	uint32_t hasNormal;
+	uint32_t hasTransparency;
 };
 
 struct ViewCB
@@ -70,6 +77,7 @@ struct ViewCB
 	uint32_t sqrtSamplesPerPixel = 2;
 
 	float elapsedTimeSeconds = 0.f;
+	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(0, 0);
 };
 
 struct D3D12Global
@@ -159,6 +167,7 @@ struct SceneObjectResource
 
 	std::string diffuseTexKey;
 	std::string normalTexKey;
+	std::string opacityTexKey;
 };
 
 struct D3D12Resources
@@ -175,6 +184,7 @@ struct D3D12Resources
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
 	ID3D12DescriptorHeap* descriptorHeap = nullptr;
 	ID3D12DescriptorHeap* uiHeap = nullptr;
+	ID3D12DescriptorHeap* cpuOnlyHeap = nullptr;
 
 	UINT											rtvDescSize = 0;
 
@@ -338,7 +348,7 @@ namespace D3DResources
 	void Create_Descriptor_Heaps(D3D12Global& d3d, D3D12Resources& resources); //Creates RTV heap
 	void Create_UIHeap(D3D12Global& d3d, D3D12Resources& resources);
 
-	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, uint32_t sqrtSPP);
+	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, TracerParameters& params);
 
 	void Upload_Texture(D3D12Global& d3d, ID3D12Resource* destResource, ID3D12Resource* srcResource, const TextureInfo& texture);
 
@@ -354,13 +364,14 @@ namespace DXR
 	void Create_Closest_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Create_Pipeline_State_Object(D3D12Global& d3d, DXRGlobal& dxr);
 	void Create_Shader_Table(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources);
+
+	void Create_Non_Shader_Visible_Heap(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, Scene& scene); // Creates raytracing shader heap
+
 	void Create_DXR_Output(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Shadow_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Create_Shadow_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Add_Alpha_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
-
-	UINT Get_Desc_Heap_Size(D3D12Global& d3d, D3D12Resources& resources, Scene& scene);
 
 	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources);
 

@@ -98,6 +98,9 @@
     <ClCompile Include="Source\imgui\imgui_impl_win32.cpp">
       <Filter>Source\ImGui</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Math.cpp">
+      <Filter>Source\Math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Core.h">

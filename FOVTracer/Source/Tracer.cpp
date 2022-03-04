@@ -24,6 +24,7 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 	D3DResources::Create_Descriptor_Heaps(D3D, Resources);
 	D3DResources::Create_BackBuffer_RTV(D3D, Resources);
 	D3DResources::Create_View_CB(D3D, Resources);
+	D3DResources::Create_UIHeap(D3D, Resources);
 
 	for (int i = 0; i < scene.SceneObjects.size(); i++)
 		AddObject(scene.SceneObjects[i], i);
@@ -32,7 +33,10 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 	DXR::Create_Bottom_Level_AS(D3D, DXR, Resources, scene);
 	DXR::Create_Top_Level_AS(D3D, DXR, Resources);
 	DXR::Create_DXR_Output(D3D, Resources);
+
+	DXR::Create_Non_Shader_Visible_Heap(D3D, Resources);
 	DXR::Create_Descriptor_Heaps(D3D, DXR, Resources, scene);
+
 	DXR::Create_RayGen_Program(D3D, DXR, ShaderCompiler);
 	DXR::Create_Miss_Program(D3D, DXR, ShaderCompiler);
 	DXR::Create_Closest_Hit_Program(D3D, DXR, ShaderCompiler);
@@ -42,15 +46,12 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 	DXR::Create_Pipeline_State_Object(D3D, DXR);
 	DXR::Create_Shader_Table(D3D, DXR, Resources);
 
-	D3DResources::Create_UIHeap(D3D, Resources);
-
 	D3D.CmdList->Close();
 	ID3D12CommandList* pGraphicsList = { D3D.CmdList };
 	D3D.CmdQueue->ExecuteCommandLists(1, &pGraphicsList);
 
 	D3D12::WaitForGPU(D3D);
 	D3D12::Reset_CommandList(D3D);
-
 
 	D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle = Resources.uiHeap->GetCPUDescriptorHandleForHeapStart();
 	D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle = Resources.uiHeap->GetGPUDescriptorHandleForHeapStart();
@@ -68,7 +69,7 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 void Tracer::Update(Scene& scene, TracerParameters& params)
 {
 #if DXR_ENABLED
-	D3DResources::Update_View_CB(D3D, Resources, scene.SceneCamera, params.SqrtSamplesPerPixel);
+	D3DResources::Update_View_CB(D3D, Resources, scene.SceneCamera, params);
 #endif
 }
 
@@ -107,9 +108,14 @@ void Tracer::AddObject(SceneObject& SceneObj, uint32_t Index)
 
 	TextureResource DiffuseTexRes = LoadTexture(SceneObj.Mesh.MeshMaterial.TexturePath);
 	SceneObj.Mesh.MeshMaterial.TextureResolution = Vector2f(static_cast<float>(DiffuseTexRes.textureInfo.width), static_cast<float>(DiffuseTexRes.textureInfo.height));
-	SceneObj.IsOpaque = !DiffuseTexRes.textureInfo.hasAlpha;
 
 	LoadTexture(SceneObj.Mesh.MeshMaterial.NormalMapPath);
+
+	if (SceneObj.Mesh.HasTransparency)
+	{
+		Resources.sceneObjResources[Index].opacityTexKey = SceneObj.Mesh.MeshMaterial.OpacityMapPath;
+		LoadTexture(SceneObj.Mesh.MeshMaterial.OpacityMapPath);
+	}
 
 	D3DResources::Create_Material_CB(D3D, Resources, SceneObj.Mesh.MeshMaterial, Index);
 }

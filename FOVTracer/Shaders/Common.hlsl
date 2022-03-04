@@ -1,4 +1,5 @@
 
+#define PI 3.141592653589793
 #define K 10
 
 struct Node
@@ -33,6 +34,7 @@ cbuffer ViewCB : register(b0)
 
 	//Unrelated to view but using this buffer for convenience for now...
     float elapsedTimeSeconds;
+    float2 fovealCenter;
 };
 
 struct MaterialCB
@@ -40,6 +42,7 @@ struct MaterialCB
 	float4 textureResolution;
     bool hasDiffuseTexture;
     bool hasNormalMap;
+    bool hasTransparency;
 };
 
 ConstantBuffer<MaterialCB> material : register(b1);
@@ -51,6 +54,7 @@ ByteAddressBuffer indices					: register(t1);
 ByteAddressBuffer vertices					: register(t2);
 Texture2D<float4> albedo					: register(t3);
 Texture2D<float4> normals					: register(t4);
+Texture2D<float4> opacity					: register(t5);
 
 struct VertexAttributes
 {

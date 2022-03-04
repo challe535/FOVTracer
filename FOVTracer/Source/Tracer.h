@@ -5,11 +5,6 @@
 
 #include <string>
 
-struct TracerParameters
-{
-	uint32_t SqrtSamplesPerPixel = 2;
-};
-
 struct TracerConfigInfo 
 {
 	int	Width = 640;
