@@ -38,10 +38,15 @@ public:
 	Input* InputHandler;
 	float ElapsedTimeS = 0.f;
 
+	float ViewportWidth;
+	float ViewportHeight;
 private:
 	HWND Window = nullptr;
 	ImGuiContext* UIContext = nullptr;
 	Tracer RayTracer;
 	Scene RayScene;
+
+	float WindowWidth;
+	float WindowHeight;
 };
 

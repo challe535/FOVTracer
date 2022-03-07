@@ -18,7 +18,7 @@ class Tracer
 {
 public:
 	void Init(TracerConfigInfo& config, HWND& window, Scene& scene);
-	void Update(Scene& scene, TracerParameters& params);
+	void Update(Scene& scene, TracerParameters& params, ComputeParams& cParams);
 	void Render();
 	void Cleanup();
 
@@ -27,6 +27,7 @@ public:
 protected:
 	DXRGlobal DXR = {};
 	D3D12ShaderCompilerInfo ShaderCompiler;
+	D3D12Compute DXCompute = {};
 
 	void AddObject(SceneObject& SceneObj, uint32_t Index);
 	TextureResource LoadTexture(std::string TextureName);

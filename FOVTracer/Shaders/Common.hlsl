@@ -30,11 +30,6 @@ cbuffer ViewCB : register(b0)
 	matrix view;
 	float4 viewOriginAndTanHalfFovY;
 	float2 resolution;
-	uint sqrtSamplesPerPixel;
-
-	//Unrelated to view but using this buffer for convenience for now...
-    float elapsedTimeSeconds;
-    float2 fovealCenter;
 };
 
 struct MaterialCB
@@ -47,7 +42,21 @@ struct MaterialCB
 
 ConstantBuffer<MaterialCB> material : register(b1);
 
+struct TraceParamsCB
+{
+    float elapsedTimeSeconds;
+    uint sqrtSamplesPerPixel;
+    float2 fovealCenter;
+    bool isFoveatedRenderingEnabled;
+    float kernelAlpha;
+    float viewportRatio;
+    float foveationFillOffset;
+};
+
+ConstantBuffer<TraceParamsCB> params : register(b2);
+
 RWTexture2D<float4> RTOutput				: register(u0);
+
 RaytracingAccelerationStructure SceneBVH	: register(t0);
 
 ByteAddressBuffer indices					: register(t1);

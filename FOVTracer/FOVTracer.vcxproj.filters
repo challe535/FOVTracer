@@ -213,5 +213,8 @@
     <FxCompile Include="Shaders\AlphaAnyHit.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="Shaders\RemapCS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

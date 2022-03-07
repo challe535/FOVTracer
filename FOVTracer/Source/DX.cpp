@@ -66,6 +66,50 @@ namespace D3DShaders
 		Utils::Validate(hr, L"Error: failed to get shader blob result!");
 	}
 
+	HRESULT CompileComputeShader(_In_ LPCWSTR srcFile, _In_ LPCSTR entryPoint,
+		_In_ ID3D12Device* device, _Outptr_ ID3DBlob** blob)
+	{
+		if (!srcFile || !entryPoint || !device || !blob)
+			return E_INVALIDARG;
+
+		*blob = nullptr;
+
+		UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
+#if defined( DEBUG ) || defined( _DEBUG )
+		flags |= D3DCOMPILE_DEBUG;
+#endif
+		// We generally prefer to use the higher CS shader profile when possible as CS 5.0 is better performance on 11-class hardware
+		LPCSTR profile = "cs_5_0";
+
+		const D3D_SHADER_MACRO defines[] =
+		{
+			NULL, NULL
+		};
+
+		ID3DBlob* shaderBlob = nullptr;
+		ID3DBlob* errorBlob = nullptr;
+		HRESULT hr = D3DCompileFromFile(srcFile, defines, D3D_COMPILE_STANDARD_FILE_INCLUDE,
+			entryPoint, profile,
+			flags, 0, &shaderBlob, &errorBlob);
+		if (FAILED(hr))
+		{
+			if (errorBlob)
+			{
+				OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+				errorBlob->Release();
+			}
+
+			if (shaderBlob)
+				shaderBlob->Release();
+
+			return hr;
+		}
+
+		*blob = shaderBlob;
+
+		return hr;
+	}
+
 	/**
 	* Compile an HLSL ray tracing shader using dxcompiler.
 	*/
@@ -384,6 +428,124 @@ namespace D3D12
 		SAFE_RELEASE(d3d.Factory);
 	}
 
+	void Create_Compute_Params_CB(D3D12Global& d3d, D3D12Compute& dxComp)
+	{
+		D3DResources::Create_Constant_Buffer(d3d, &dxComp.paramCB, sizeof(ComputeParams));
+#if NAME_D3D_RESOURCES
+		dxComp.paramCB->SetName(L"Trace Parameters Constant Buffer");
+#endif
+		HRESULT hr = dxComp.paramCB->Map(0, nullptr, reinterpret_cast<void**>(&dxComp.paramCBStart));
+		Utils::Validate(hr, L"Error: failed to map Material constant buffer!");
+
+		memcpy(dxComp.paramCBStart, &dxComp.paramCBData, sizeof(ComputeParams));
+	}
+
+	void Create_Compute_PipelineState(D3D12Global d3d, D3D12Compute& dxComp)
+	{
+		D3D12_COMPUTE_PIPELINE_STATE_DESC computePsoDesc = {};
+		computePsoDesc.pRootSignature = dxComp.pRootSignature;
+		D3D12_SHADER_BYTECODE byteCode;
+		byteCode.pShaderBytecode = dxComp.csProgram->GetBufferPointer();
+		byteCode.BytecodeLength = dxComp.csProgram->GetBufferSize();
+		computePsoDesc.CS = byteCode;
+
+		d3d.Device->CreateComputePipelineState(&computePsoDesc, IID_PPV_ARGS(&dxComp.cps));
+	}
+
+	void Create_Compute_Program(D3D12Global& d3d, D3D12Compute& dxComp)
+	{
+		HRESULT hr = D3DShaders::CompileComputeShader(L"Shaders\\RemapCS.hlsl", "CSMain", d3d.Device, &dxComp.csProgram);
+		Utils::Validate(hr, L"Failed to compile compute shader");
+
+		D3D12_DESCRIPTOR_RANGE ranges[2];
+
+		ranges[0].BaseShaderRegister = 0;
+		ranges[0].NumDescriptors = 1;
+		ranges[0].RegisterSpace = 0;
+		ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+		ranges[0].OffsetInDescriptorsFromTableStart = 0;
+
+		ranges[1].BaseShaderRegister = 0;
+		ranges[1].NumDescriptors = 2;
+		ranges[1].RegisterSpace = 0;
+		ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		ranges[1].OffsetInDescriptorsFromTableStart = ranges[0].NumDescriptors;
+
+		D3D12_ROOT_PARAMETER param = {};
+		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		param.DescriptorTable.NumDescriptorRanges = 2;
+		param.DescriptorTable.pDescriptorRanges = ranges;
+
+		D3D12_ROOT_SIGNATURE_DESC rootDesc = {};
+		rootDesc.NumParameters = 1;
+		rootDesc.pParameters = &param;
+		rootDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+
+		dxComp.pRootSignature = D3D12::Create_Root_Signature(d3d, rootDesc);
+	}
+
+	void Create_Compute_Heap(D3D12Global& d3d, D3D12Resources& resources, D3D12Compute& dxComp)
+	{
+		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+		desc.NumDescriptors = 3;
+		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+		// Create the descriptor heap
+		HRESULT hr = d3d.Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&dxComp.descriptorHeap));
+		Utils::Validate(hr, L"Error: failed to create DXR CBV/SRV/UAV descriptor heap!");
+
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = dxComp.descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+		UINT handleIncrement = d3d.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		//Create Params buffer CBV
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.SizeInBytes = ALIGN(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, sizeof(dxComp.paramCBData));
+		cbvDesc.BufferLocation = dxComp.paramCB->GetGPUVirtualAddress();
+
+		d3d.Device->CreateConstantBufferView(&cbvDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// Create the DXR output buffer UAV
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+
+		d3d.Device->CreateUnorderedAccessView(resources.DXROutput, nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// Create the Remapped output buffer UAV
+		d3d.Device->CreateUnorderedAccessView(resources.Log2CartOutput, nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+	}
+
+	void Create_Compute_Output(D3D12Global& d3d, D3D12Resources& resources)
+	{
+		D3D12_RESOURCE_DESC desc = {};
+		desc.DepthOrArraySize = 1;
+		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+		desc.Width = d3d.Width;
+		desc.Height = d3d.Height;
+		desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		desc.MipLevels = 1;
+		desc.SampleDesc.Count = 1;
+		desc.SampleDesc.Quality = 0;
+
+		// Create the buffer resource
+		HRESULT hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&resources.Log2CartOutput));
+		Utils::Validate(hr, L"Error: failed to create remap output buffer!");
+#if NAME_D3D_RESOURCES
+		resources.DXROutput->SetName(L"DXR Output Buffer");
+#endif
+	}
+
+	void Update_Compute_Params(D3D12Compute& dxComp, ComputeParams& params)
+	{
+		dxComp.paramCBData = params;
+		memcpy(dxComp.paramCBStart, &dxComp.paramCBData, sizeof(dxComp.paramCBData));
+	}
 }
 
 namespace D3DResources
@@ -642,6 +804,22 @@ namespace D3DResources
 		//resources.sceneObjResources[index].materialCB->Unmap(0, nullptr);
 	}
 
+	/**
+	* Create and initialize the trace parmeters constant buffer.
+	*/
+	void Create_Params_CB(D3D12Global& d3d, D3D12Resources& resources)
+	{
+		Create_Constant_Buffer(d3d, &resources.paramCB, sizeof(TracerParameters));
+#if NAME_D3D_RESOURCES
+		resources.paramCB->SetName(L"Trace Parameters Constant Buffer");
+#endif
+		HRESULT hr = resources.paramCB->Map(0, nullptr, reinterpret_cast<void**>(&resources.paramCBStart));
+		Utils::Validate(hr, L"Error: failed to map Material constant buffer!");
+
+		memcpy(resources.paramCBStart, &resources.paramCBData, sizeof(TracerParameters));
+	}
+
+
 	void Create_UIHeap(D3D12Global& d3d, D3D12Resources& resources)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
@@ -678,7 +856,7 @@ namespace D3DResources
 	/**
 	* Update the view constant buffer.
 	*/
-	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, TracerParameters& params)
+	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera)
 	{
 		DirectX::XMMATRIX view, invView;
 		DirectX::XMFLOAT3 eye, focus, up;
@@ -698,11 +876,17 @@ namespace D3DResources
 		resources.viewCBData.view = XMMatrixTranspose(invView);
 		resources.viewCBData.viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(eye.x, eye.y, eye.z, tanf(fov * 0.5f));
 		resources.viewCBData.resolution = DirectX::XMFLOAT2((float)d3d.Width, (float)d3d.Height);
-		resources.viewCBData.sqrtSamplesPerPixel = params.SqrtSamplesPerPixel;
-		resources.viewCBData.fovealCenter = DirectX::XMFLOAT2(params.fovealCenter[0], params.fovealCenter[1]);
-		resources.viewCBData.elapsedTimeSeconds = Application::GetApplication().ElapsedTimeS;
 
 		memcpy(resources.viewCBStart, &resources.viewCBData, sizeof(resources.viewCBData));
+	}
+
+	/**
+	* Update the view constant buffer.
+	*/
+	void Update_Params_CB(D3D12Resources& resources, TracerParameters& params)
+	{
+		resources.paramCBData = params;
+		memcpy(resources.paramCBStart, &resources.paramCBData, sizeof(resources.paramCBData));
 	}
 
 	/**
@@ -911,7 +1095,7 @@ namespace DXR
 		D3D12_DESCRIPTOR_RANGE ranges[3];
 
 		ranges[0].BaseShaderRegister = 0;
-		ranges[0].NumDescriptors = 2;
+		ranges[0].NumDescriptors = 3;
 		ranges[0].RegisterSpace = 0;
 		ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 		ranges[0].OffsetInDescriptorsFromTableStart = 0;
@@ -920,13 +1104,13 @@ namespace DXR
 		ranges[1].NumDescriptors = 1;
 		ranges[1].RegisterSpace = 0;
 		ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-		ranges[1].OffsetInDescriptorsFromTableStart = 2;
+		ranges[1].OffsetInDescriptorsFromTableStart = ranges[0].NumDescriptors;
 
 		ranges[2].BaseShaderRegister = 0;
 		ranges[2].NumDescriptors = 6;
 		ranges[2].RegisterSpace = 0;
 		ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		ranges[2].OffsetInDescriptorsFromTableStart = 3;
+		ranges[2].OffsetInDescriptorsFromTableStart = ranges[0].NumDescriptors + ranges[1].NumDescriptors;
 
 		D3D12_ROOT_PARAMETER param0 = {};
 		param0.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
@@ -1308,6 +1492,9 @@ namespace DXR
 		dxr.shaderTable->Unmap(0, nullptr);
 	}
 
+	/*
+	* Descriptor heap for clearing the framebuffer
+	*/
 	void Create_Non_Shader_Visible_Heap(D3D12Global& d3d, D3D12Resources& resources)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
@@ -1356,6 +1543,7 @@ namespace DXR
 			// Need 8 entries per scene object:
 			// 1 CBV for the ViewCB
 			// 1 CBV for the MaterialCB
+			// 1 CBV for the Tracer ParamsCB
 			// 1 UAV for the RT output
 			// 1 SRV for the Scene BVH
 			// 1 SRV for the index buffer
@@ -1375,6 +1563,13 @@ namespace DXR
 			// Create the MaterialCB CBV
 			cbvDesc.SizeInBytes = ALIGN(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, sizeof(resources.sceneObjResources[i].materialCBData));
 			cbvDesc.BufferLocation = resources.sceneObjResources[i].materialCB->GetGPUVirtualAddress();
+
+			d3d.Device->CreateConstantBufferView(&cbvDesc, handle);
+			handle.ptr += handleIncrement;
+
+			//Create the Tracer ParamsCB CBV
+			cbvDesc.SizeInBytes = ALIGN(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, sizeof(resources.paramCBData));
+			cbvDesc.BufferLocation = resources.paramCB->GetGPUVirtualAddress();
 
 			d3d.Device->CreateConstantBufferView(&cbvDesc, handle);
 			handle.ptr += handleIncrement;
@@ -1488,7 +1683,7 @@ namespace DXR
 	/**
 	* Builds the frame's DXR command list.
 	*/
-	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources)
+	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp)
 	{
 		D3D12_RESOURCE_BARRIER OutputBarriers[2] = {};
 		D3D12_RESOURCE_BARRIER CounterBarriers[2] = {};
@@ -1512,14 +1707,14 @@ namespace DXR
 		ID3D12DescriptorHeap* ppHeaps[1] = {resources.descriptorHeap};
 		d3d.CmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-		auto gpuHandle = resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();
-		auto cpuHandle = resources.cpuOnlyHeap->GetCPUDescriptorHandleForHeapStart();
+		//auto gpuHandle = resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+		//auto cpuHandle = resources.cpuOnlyHeap->GetCPUDescriptorHandleForHeapStart();
 
-		gpuHandle.ptr += 2 * d3d.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		//gpuHandle.ptr += 2 * d3d.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		
-		//Dont clear if using stochastic sampling method
-		const float ClearColor[4] = { 0, 0, 0, 0 };
-		d3d.CmdList->ClearUnorderedAccessViewFloat(gpuHandle, cpuHandle, resources.DXROutput, ClearColor, 0, NULL);
+		////Dont clear if using stochastic sampling method
+		//const float ClearColor[4] = { 0, 0, 0, 0 };
+		//d3d.CmdList->ClearUnorderedAccessViewFloat(gpuHandle, cpuHandle, resources.DXROutput, ClearColor, 0, NULL);
 
 		// Dispatch rays
 		D3D12_DISPATCH_RAYS_DESC desc = {};
@@ -1541,6 +1736,33 @@ namespace DXR
 		d3d.CmdList->SetPipelineState1(dxr.rtpso);
 		d3d.CmdList->DispatchRays(&desc);
 
+		//May need to do this after DXROutput barrier below
+		//Compute remap to cartesian coords
+		D3D12_RESOURCE_BARRIER ComputeBarrier = {};
+		ComputeBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		ComputeBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		ComputeBarrier.Transition.pResource = resources.Log2CartOutput;
+		ComputeBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+		ComputeBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+		ComputeBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+		d3d.CmdList->ResourceBarrier(1, &ComputeBarrier);
+
+		d3d.CmdList->SetDescriptorHeaps(1, &dxComp.descriptorHeap);
+		d3d.CmdList->SetPipelineState(dxComp.cps);
+		d3d.CmdList->SetComputeRootSignature(dxComp.pRootSignature);
+
+		//d3d.CmdList->SetComputeRootConstantBufferView(0, dxComp.paramCB->GetGPUVirtualAddress());
+		d3d.CmdList->SetComputeRootDescriptorTable(0, dxComp.descriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+		d3d.CmdList->Dispatch(
+			ceil(Application::GetApplication().ViewportWidth / 32.0f), 
+			ceil(Application::GetApplication().ViewportHeight / 32.0f),
+			1);
+
+		ComputeBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+		ComputeBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+		d3d.CmdList->ResourceBarrier(1, &ComputeBarrier);
+
 		// Transition DXR output to a copy source
 		OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		OutputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
@@ -1549,7 +1771,7 @@ namespace DXR
 		d3d.CmdList->ResourceBarrier(1, &OutputBarriers[1]);
 
 		// Copy the DXR output to the back buffer
-		d3d.CmdList->CopyResource(d3d.BackBuffer[d3d.FrameIndex], resources.DXROutput);
+		d3d.CmdList->CopyResource(d3d.BackBuffer[d3d.FrameIndex], resources.Log2CartOutput);
 
 		// Transition back buffer to present
 		OutputBarriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;

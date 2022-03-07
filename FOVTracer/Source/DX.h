@@ -10,6 +10,7 @@
 
 #include <dxgi1_6.h>
 #include <d3d12.h>
+#include <d3dcompiler.h>
 #include <dxc/dxcapi.h>
 #include <dxc/dxcapi.use.h>
 
@@ -26,7 +27,7 @@
 
 namespace DX12Constants
 {
-	constexpr uint32_t descriptors_per_shader = 9;
+	constexpr uint32_t descriptors_per_shader = 10;
 }
 
 static const D3D12_HEAP_PROPERTIES UploadHeapProperties =
@@ -48,8 +49,13 @@ static const D3D12_HEAP_PROPERTIES DefaultHeapProperties =
 
 struct TracerParameters
 {
-	uint32_t SqrtSamplesPerPixel = 2;
-	float fovealCenter[2] = { 0, 0 };
+	float elapsedTimeSeconds = 0.f;
+	uint32_t sqrtSamplesPerPixel = 1;
+	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(1920/2, 1080/2);
+	uint32_t isFoveatedRenderingEnabled = 0;
+	float kernelAlpha = 1.0f;
+	float viewportRatio = 1.0f;
+	float foveationFillOffset = 0.0f;
 };
 
 struct TextureInfo
@@ -74,10 +80,6 @@ struct ViewCB
 	DirectX::XMMATRIX view = DirectX::XMMatrixIdentity();
 	DirectX::XMFLOAT4 viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(0, 0.f, 0.f, 0.f);
 	DirectX::XMFLOAT2 resolution = DirectX::XMFLOAT2(10, 10);
-	uint32_t sqrtSamplesPerPixel = 2;
-
-	float elapsedTimeSeconds = 0.f;
-	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(0, 0);
 };
 
 struct D3D12Global
@@ -100,6 +102,29 @@ struct D3D12Global
 	int Width = 1280;
 	int	Height = 720;
 	bool Vsync = false;
+};
+
+struct ComputeParams
+{
+	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(1920 / 2, 1080 / 2);
+	uint32_t isFoveatedRenderingEnabled = 0;
+	float kernelAlpha = 1.0f;
+	float viewportRatio = 1.0f;
+	DirectX::XMFLOAT2 resoltion = DirectX::XMFLOAT2(1920, 1080);
+};
+
+struct D3D12Compute
+{
+	ID3DBlob* csProgram = nullptr;
+	ID3D12RootSignature* pRootSignature = nullptr;
+
+	ID3D12Resource* paramCB = nullptr;
+	ComputeParams paramCBData;
+	UINT8* paramCBStart = nullptr;
+
+	ID3D12DescriptorHeap* descriptorHeap = nullptr;
+
+	ID3D12PipelineState* cps = nullptr;
 };
 
 struct D3D12ShaderCompilerInfo
@@ -173,6 +198,7 @@ struct SceneObjectResource
 struct D3D12Resources
 {
 	ID3D12Resource* DXROutput;
+	ID3D12Resource* Log2CartOutput;
 
 	std::vector<SceneObjectResource> sceneObjResources;
 	std::unordered_map<std::string, TextureResource> Textures;
@@ -180,6 +206,10 @@ struct D3D12Resources
 	ID3D12Resource* viewCB = nullptr;
 	ViewCB viewCBData;
 	UINT8* viewCBStart = nullptr;
+
+	ID3D12Resource* paramCB = nullptr;
+	TracerParameters paramCBData;
+	UINT8* paramCBStart = nullptr;
 
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
 	ID3D12DescriptorHeap* descriptorHeap = nullptr;
@@ -311,6 +341,8 @@ namespace D3DShaders
 	void Init_Shader_Compiler(D3D12ShaderCompilerInfo& shaderCompiler);
 	void Compile_Shader(D3D12ShaderCompilerInfo& compilerInfo, RtProgram& program);
 	void Compile_Shader(D3D12ShaderCompilerInfo& compilerInfo, D3D12ShaderInfo& info, IDxcBlob** blob);
+	HRESULT CompileComputeShader(_In_ LPCWSTR srcFile, _In_ LPCSTR entryPoint,
+		_In_ ID3D12Device* device, _Outptr_ ID3DBlob** blob);
 	void Destroy(D3D12ShaderCompilerInfo& shaderCompiler);
 }
 
@@ -333,6 +365,13 @@ namespace D3D12
 	void MoveToNextFrame(D3D12Global& d3d);
 
 	void Destroy(D3D12Global& d3d);
+
+	void Create_Compute_Params_CB(D3D12Global& d3d, D3D12Compute& dxComp);
+	void Create_Compute_Program(D3D12Global& d3d, D3D12Compute& dxComp);
+	void Create_Compute_PipelineState(D3D12Global d3d, D3D12Compute& dxComp);
+	void Create_Compute_Heap(D3D12Global& d3d, D3D12Resources& resources, D3D12Compute& dxComp);
+	void Create_Compute_Output(D3D12Global& d3d, D3D12Resources& resources);
+	void Update_Compute_Params(D3D12Compute& dxComp, ComputeParams& params);
 }
 
 namespace D3DResources
@@ -345,10 +384,12 @@ namespace D3DResources
 	void Create_BackBuffer_RTV(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_View_CB(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Material_CB(D3D12Global& d3d, D3D12Resources& resources, const Material& material, uint32_t index);
+	void Create_Params_CB(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Descriptor_Heaps(D3D12Global& d3d, D3D12Resources& resources); //Creates RTV heap
 	void Create_UIHeap(D3D12Global& d3d, D3D12Resources& resources);
 
-	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, TracerParameters& params);
+	void Update_Params_CB(D3D12Resources& resources, TracerParameters& params);
+	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera);
 
 	void Upload_Texture(D3D12Global& d3d, ID3D12Resource* destResource, ID3D12Resource* srcResource, const TextureInfo& texture);
 
@@ -373,7 +414,7 @@ namespace DXR
 	void Create_Shadow_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Add_Alpha_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 
-	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources);
+	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp);
 
 	void Destroy(DXRGlobal& dxr);
 }

@@ -2,6 +2,7 @@
 #include "Tracer.h"
 #include "Log.h"
 #include "Utils.h"
+#include "Application.h"
 
 
 void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene) 
@@ -25,6 +26,7 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 	D3DResources::Create_BackBuffer_RTV(D3D, Resources);
 	D3DResources::Create_View_CB(D3D, Resources);
 	D3DResources::Create_UIHeap(D3D, Resources);
+	D3DResources::Create_Params_CB(D3D, Resources);
 
 	for (int i = 0; i < scene.SceneObjects.size(); i++)
 		AddObject(scene.SceneObjects[i], i);
@@ -46,6 +48,12 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 	DXR::Create_Pipeline_State_Object(D3D, DXR);
 	DXR::Create_Shader_Table(D3D, DXR, Resources);
 
+	D3D12::Create_Compute_Params_CB(D3D, DXCompute);
+	D3D12::Create_Compute_Program(D3D, DXCompute);
+	D3D12::Create_Compute_PipelineState(D3D, DXCompute);
+	D3D12::Create_Compute_Output(D3D, Resources);
+	D3D12::Create_Compute_Heap(D3D, Resources, DXCompute);
+
 	D3D.CmdList->Close();
 	ID3D12CommandList* pGraphicsList = { D3D.CmdList };
 	D3D.CmdQueue->ExecuteCommandLists(1, &pGraphicsList);
@@ -66,17 +74,22 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 #endif
 }
 
-void Tracer::Update(Scene& scene, TracerParameters& params)
+void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cParams)
 {
 #if DXR_ENABLED
-	D3DResources::Update_View_CB(D3D, Resources, scene.SceneCamera, params);
+	D3DResources::Update_Params_CB(Resources, params);
+	D3DResources::Update_View_CB(D3D, Resources, scene.SceneCamera);
+	D3D12::Update_Compute_Params(DXCompute, cParams);
+
+	D3D.Width = Application::GetApplication().ViewportWidth;
+	D3D.Height = Application::GetApplication().ViewportHeight;
 #endif
 }
 
 void Tracer::Render()
 {
 #if DXR_ENABLED
-	DXR::Build_Command_List(D3D, DXR, Resources);
+	DXR::Build_Command_List(D3D, DXR, Resources, DXCompute);
 	D3D12::Present(D3D);
 	D3D12::MoveToNextFrame(D3D);
 	D3D12::Reset_CommandList(D3D);

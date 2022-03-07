@@ -53,6 +53,8 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 	Config.Instance = instance;
 	Config.Vsync = false;
 
+	WindowHeight = ViewportHeight = height;
+	WindowWidth = ViewportWidth = width;
 
 	IMGUI_CHECKVERSION();
 	UIContext = ImGui::CreateContext();
@@ -72,10 +74,13 @@ void Application::Run()
 	MSG msg = { 0 };
 
 	TracerParameters TraceParams;
+	ComputeParams ComputeParams;
 
 	float DeltaTime = 0.0f;
 	float FpsRunningAverage = 0.0f;
 	float FpsTrueAverage = 0.0f;
+
+	float ViewportRatio = 1.0f;
 
 	uint64_t FrameCount = 0;
 	bool LMouseClicked = false;
@@ -95,6 +100,13 @@ void Application::Run()
 
 		InputHandler->UpdateMouseInfo();
 
+		//Compute Params
+		ComputeParams.fovealCenter = TraceParams.fovealCenter;
+		ComputeParams.isFoveatedRenderingEnabled = TraceParams.isFoveatedRenderingEnabled;
+		ComputeParams.kernelAlpha = TraceParams.kernelAlpha;
+		ComputeParams.viewportRatio = TraceParams.viewportRatio;
+		ComputeParams.resoltion = DirectX::XMFLOAT2(ViewportWidth, ViewportHeight);
+
 		//App specific code goes here
 		//Feed scene into tracer and tell it to trace the scene
 
@@ -102,7 +114,7 @@ void Application::Run()
 
 		float MouseSensitivity = 0.3f;
 
-		if (InputHandler->IsKeyDown(VK_LBUTTON))
+		if (InputHandler->IsKeyDown(VK_RBUTTON))
 		{
 			if (!LMouseClicked)
 			{
@@ -132,7 +144,11 @@ void Application::Run()
 
 		SceneCamera.Position = SceneCamera.Position + CameraMove * DeltaTime * CameraSpeed;
 
-		RayTracer.Update(RayScene, TraceParams);
+		ViewportHeight = WindowHeight / ViewportRatio;
+		ViewportWidth = WindowWidth / ViewportRatio;
+		TraceParams.viewportRatio = ViewportRatio;
+
+		RayTracer.Update(RayScene, TraceParams, ComputeParams);
 
 		//// --- Rendering ---
 
@@ -144,8 +160,13 @@ void Application::Run()
 		if (opened)
 		{
 			ImGui::Text("Frame rate: %.3f fps", FpsRunningAverage);
-			ImGui::SliderInt("Sqrt spp", reinterpret_cast<int*>(&TraceParams.SqrtSamplesPerPixel), 0, 10);
-			ImGui::SliderFloat2("Foveal point", TraceParams.fovealCenter, 0.f, 1920.f);
+			ImGui::SliderInt("Sqrt spp", reinterpret_cast<int*>(&TraceParams.sqrtSamplesPerPixel), 0, 10);
+			ImGui::SliderFloat("Viewport Ratio", &ViewportRatio, 1.0f, 3.0f);
+			ImGui::Separator();
+			ImGui::Checkbox("Use foveated rendering", reinterpret_cast<bool*>(&TraceParams.isFoveatedRenderingEnabled));
+			ImGui::SliderFloat2("Foveal point", reinterpret_cast<float*>(&TraceParams.fovealCenter), 0.f, 1920.f);
+			ImGui::SliderFloat("Kernel Alpha", &TraceParams.kernelAlpha, 0.5f, 6.0f);
+			ImGui::SliderFloat("foveationFillOffset", &TraceParams.foveationFillOffset, 0.0f, 10.0f);
 		}
 		ImGui::End();
 
@@ -157,7 +178,7 @@ void Application::Run()
 		DeltaTime = std::chrono::duration<float>(FrameEnd - FrameStart).count();
 		ElapsedTimeS += DeltaTime;
 		FrameCount++;
-		
+
 		float FrameFpsAverage = 1.0f / DeltaTime;
 
 		FpsRunningAverage = FpsRunningAverage * 0.9f + FrameFpsAverage * 0.1f;
@@ -167,6 +188,8 @@ void Application::Run()
 		{
 			CORE_TRACE("FpsRunning = {0}, FpsTrue = {1}, FpsCurrent = {2}", FpsRunningAverage, FpsTrueAverage, FrameFpsAverage);
 		}
+
+		TraceParams.elapsedTimeSeconds = ElapsedTimeS;
 
 		InputHandler->OnFrameEnd();
 	}

@@ -61,7 +61,7 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     // --- Light ---
     PointLightInfo plInfo;
 
-    plInfo.position = float3(0, 700 + 100 * sin(elapsedTimeSeconds), 0);
+    plInfo.position = float3(0, 700 + 100 * sin(params.elapsedTimeSeconds), 0);
     plInfo.color = float3(0.9, 0.9, 1.0);
     plInfo.luminocity = 1000000.0;
 
@@ -75,7 +75,7 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
 
     float3 color = factor * diffuse.rgb * max(dot(lightDir, vertex.normal), ambient) * plInfo.color * plInfo.luminocity / pow(distToLight, 2);
 
-    //color = co;
+    //TODO: Maybe avoidable to always do this loop if no transparency was encountered
     [unroll]
     for (int i = 0; i < K; i++)
         color += (1 - payload.node[i].transmit) * payload.node[i].color;
