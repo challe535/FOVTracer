@@ -1,3 +1,4 @@
+#include "KernelFov.hlsl"
 
 #define PI 3.141592653589793
 #define BLOCKSIZE 32
@@ -9,11 +10,7 @@ cbuffer ParamsCB : register(b0)
     float kernelAlpha;
     float viewportRatio;
     float2 resolution;
-}
-
-float kernelFuncInv(float x)
-{
-    return pow(x, 1/kernelAlpha);
+    bool shouldBlur;
 }
 
 RWTexture2D<float4> logPolarBuffer : register(u0);
@@ -36,7 +33,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
 
     float2 relativePoint = LaunchIndex - fovealPoint;
 
-    float u = kernelFuncInv(log(length(relativePoint)) / L) * resolution.x;
+    float u = kernelFuncInv(log(length(relativePoint)) / L, kernelAlpha) * resolution.x;
     float v = (atan2(relativePoint.y, relativePoint.x) + (relativePoint.y < 0 ? 1 : 0) * 2 * PI) * resolution.y / (2 * PI);
     
     float lu = u - 1;
@@ -54,20 +51,52 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
 
     if (isFoveatedRenderingEnabled)
     {
+
         finalColor = logPolarBuffer[float2(u, v)];
-        finalColor += logPolarBuffer[float2(lu, v)];
-        finalColor += logPolarBuffer[float2(ru, v)];
-        finalColor += logPolarBuffer[float2(u, lv)];
-        finalColor += logPolarBuffer[float2(u, rv)];
 
-        finalColor += logPolarBuffer[float2(ru, rv)];
-        finalColor += logPolarBuffer[float2(lu, rv)];
-        finalColor += logPolarBuffer[float2(ru, lv)];
-        finalColor += logPolarBuffer[float2(lu, lv)];
+        if (shouldBlur)
+        {
+            finalColor += logPolarBuffer[float2(lu, v)];
+            finalColor += logPolarBuffer[float2(ru, v)];
+            finalColor += logPolarBuffer[float2(u, lv)];
+            finalColor += logPolarBuffer[float2(u, rv)];
 
-        finalColor /= 9;
-        remappedBuffer[DTid.xy] = float4(finalColor, 1.0f);
+            finalColor += logPolarBuffer[float2(ru, rv)];
+            finalColor += logPolarBuffer[float2(lu, rv)];
+            finalColor += logPolarBuffer[float2(ru, lv)];
+            finalColor += logPolarBuffer[float2(lu, lv)];
+
+            finalColor /= 9;
+        }
+
+        float normFovealDist = length(relativePoint) / maxCornerDist;
+        float upper = kernelFunc(0.1, kernelAlpha);
+        float lower = kernelFunc(0.099, kernelAlpha);
+        if (normFovealDist < upper && normFovealDist > lower)
+        {
+            finalColor = float3(1, 0, 1) * 0.5 + finalColor * 0.5;
+        }
+       
     }
     else
-        remappedBuffer[DTid.xy] = logPolarBuffer[DTid.xy];
+    {
+        finalColor = logPolarBuffer[DTid.xy];
+        if (shouldBlur)
+        {
+            finalColor += logPolarBuffer[float2(DTid.x - 1, DTid.y)];
+            finalColor += logPolarBuffer[float2(DTid.x + 1, DTid.y)];
+            finalColor += logPolarBuffer[float2(DTid.x, DTid.y - 1)];
+            finalColor += logPolarBuffer[float2(DTid.x, DTid.y + 1)];
+
+            finalColor += logPolarBuffer[float2(DTid.x - 1, DTid.y - 1)];
+            finalColor += logPolarBuffer[float2(DTid.x + 1, DTid.y - 1)];
+            finalColor += logPolarBuffer[float2(DTid.x - 1, DTid.y + 1)];
+            finalColor += logPolarBuffer[float2(DTid.x + 1, DTid.y + 1)];
+
+            finalColor /= 9;
+        }
+    }
+
+    remappedBuffer[DTid.xy] = float4(finalColor, 1.0f);
+        
 }

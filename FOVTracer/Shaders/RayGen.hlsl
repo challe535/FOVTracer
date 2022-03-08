@@ -1,16 +1,12 @@
 #include "Common.hlsl"
-
-float kernelFunc(float x)
-{
-    return pow(x, params.kernelAlpha);
-}
+#include "KernelFov.hlsl"
 
 void fillOutputAtIndex(float2 index, float4 color, float maxDist)
 {
     float foveaDist = length(index - params.fovealCenter) / maxDist;
     float indexMultiplier = params.viewportRatio;
 
-    float2 upperIndex = round(index.xy * indexMultiplier + params.foveationFillOffset * (params.isFoveatedRenderingEnabled ? kernelFunc(foveaDist) : 1));
+    float2 upperIndex = round(index.xy * indexMultiplier + params.foveationFillOffset * (params.isFoveatedRenderingEnabled ? kernelFunc(foveaDist, params.kernelAlpha) : 1));
     float2 lowerIndex = round(max(index.xy - 1, 0) * indexMultiplier);
 
     for (float x = lowerIndex.x; x < upperIndex.x; x++)
@@ -54,11 +50,11 @@ void RayGen()
         offsetY = stepSize;
         for (int j = 0; j < params.sqrtSamplesPerPixel; j++)
         {
-            float2 AdjustedIndex = LaunchIndex + float2(offsetX, offsetY);
+            float2 AdjustedIndex = LaunchIndex * (!params.isFoveatedRenderingEnabled ? params.viewportRatio : 1.0) + float2(offsetX, offsetY);
             float2 d = ((AdjustedIndex / LaunchDimensions.xy) * 2.f - 1.f);
             if (params.isFoveatedRenderingEnabled)
             {
-                float2 logPolar2Screen = exp(L * kernelFunc(AdjustedIndex.x / LaunchDimensions.x)) * float2(cos(B * AdjustedIndex.y), sin(B * AdjustedIndex.y)) + fovealPoint;
+                float2 logPolar2Screen = exp(L * kernelFunc(AdjustedIndex.x / LaunchDimensions.x, params.kernelAlpha)) * float2(cos(B * AdjustedIndex.y), sin(B * AdjustedIndex.y)) + fovealPoint;
             
                 d = ((float2(logPolar2Screen.x, logPolar2Screen.y) / LaunchDimensions.xy) * 2.f - 1.f);
             }

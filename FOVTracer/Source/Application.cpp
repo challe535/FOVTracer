@@ -167,6 +167,7 @@ void Application::Run()
 			ImGui::SliderFloat2("Foveal point", reinterpret_cast<float*>(&TraceParams.fovealCenter), 0.f, 1920.f);
 			ImGui::SliderFloat("Kernel Alpha", &TraceParams.kernelAlpha, 0.5f, 6.0f);
 			ImGui::SliderFloat("foveationFillOffset", &TraceParams.foveationFillOffset, 0.0f, 10.0f);
+			ImGui::Checkbox("Blur output", reinterpret_cast<bool*>(&ComputeParams.shouldBlur));
 		}
 		ImGui::End();
 

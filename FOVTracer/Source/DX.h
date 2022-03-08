@@ -111,6 +111,7 @@ struct ComputeParams
 	float kernelAlpha = 1.0f;
 	float viewportRatio = 1.0f;
 	DirectX::XMFLOAT2 resoltion = DirectX::XMFLOAT2(1920, 1080);
+	uint32_t shouldBlur = 1;
 };
 
 struct D3D12Compute
