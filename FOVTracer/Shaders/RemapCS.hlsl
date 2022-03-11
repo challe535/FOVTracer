@@ -11,10 +11,39 @@ cbuffer ParamsCB : register(b0)
     float viewportRatio;
     float2 resolution;
     bool shouldBlur;
+    bool isMotionView;
+    bool isDepthView;
 }
 
-RWTexture2D<float4> logPolarBuffer : register(u0);
-RWTexture2D<float4> remappedBuffer : register(u1);
+RWTexture2D<float4> InColorBuffer : register(u0);
+RWTexture2D<float4> OutColorBuffer : register(u1);
+RWTexture2D<float4> InMotionBuffer : register(u2);
+RWTexture2D<float4> OutMotionBuffer : register(u3);
+RWTexture2D<float4> WorldPosBuffer : register(u4);
+
+
+float4 sampleTexture(RWTexture2D<float4> buffer, float2 index)
+{
+    
+    float4 result = buffer[index];
+
+    if (shouldBlur)
+    {
+        result += buffer[float2(index.x - 1, index.y)];
+        result += buffer[float2(index.x + 1, index.y)];
+        result += buffer[float2(index.x, index.y - 1)];
+        result += buffer[float2(index.x, index.y + 1)];
+
+        result += buffer[float2(index.x - 1, index.y - 1)];
+        result += buffer[float2(index.x + 1, index.y - 1)];
+        result += buffer[float2(index.x - 1, index.y + 1)];
+        result += buffer[float2(index.x + 1, index.y + 1)];
+
+        result /= 9;
+    }
+
+    return result;
+}
 
 [numthreads(BLOCKSIZE, BLOCKSIZE, 1)]
 void CSMain(uint3 DTid : SV_DispatchThreadID)
@@ -35,11 +64,6 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
 
     float u = kernelFuncInv(log(length(relativePoint)) / L, kernelAlpha) * resolution.x;
     float v = (atan2(relativePoint.y, relativePoint.x) + (relativePoint.y < 0 ? 1 : 0) * 2 * PI) * resolution.y / (2 * PI);
-    
-    float lu = u - 1;
-    float ru = u + 1;
-    float lv = (v - 1) % resolution.y;
-    float rv = (v + 1) % resolution.y;
 
     //Use later for linear filtering sort of thing
     //uint iu = floor(u);
@@ -49,25 +73,15 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
 
     float3 finalColor = float3(0, 0, 0);
 
-    if (isFoveatedRenderingEnabled)
+    if (isDepthView)
+    {
+        finalColor = sampleTexture(WorldPosBuffer, DTid.xy).aaa;
+
+    }
+    else if (isFoveatedRenderingEnabled)
     {
 
-        finalColor = logPolarBuffer[float2(u, v)];
-
-        if (shouldBlur)
-        {
-            finalColor += logPolarBuffer[float2(lu, v)];
-            finalColor += logPolarBuffer[float2(ru, v)];
-            finalColor += logPolarBuffer[float2(u, lv)];
-            finalColor += logPolarBuffer[float2(u, rv)];
-
-            finalColor += logPolarBuffer[float2(ru, rv)];
-            finalColor += logPolarBuffer[float2(lu, rv)];
-            finalColor += logPolarBuffer[float2(ru, lv)];
-            finalColor += logPolarBuffer[float2(lu, lv)];
-
-            finalColor /= 9;
-        }
+        finalColor = sampleTexture(InColorBuffer, float2(u, v));
 
         float normFovealDist = length(relativePoint) / maxCornerDist;
         float upper = kernelFunc(0.1, kernelAlpha);
@@ -80,23 +94,17 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     }
     else
     {
-        finalColor = logPolarBuffer[DTid.xy];
-        if (shouldBlur)
-        {
-            finalColor += logPolarBuffer[float2(DTid.x - 1, DTid.y)];
-            finalColor += logPolarBuffer[float2(DTid.x + 1, DTid.y)];
-            finalColor += logPolarBuffer[float2(DTid.x, DTid.y - 1)];
-            finalColor += logPolarBuffer[float2(DTid.x, DTid.y + 1)];
-
-            finalColor += logPolarBuffer[float2(DTid.x - 1, DTid.y - 1)];
-            finalColor += logPolarBuffer[float2(DTid.x + 1, DTid.y - 1)];
-            finalColor += logPolarBuffer[float2(DTid.x - 1, DTid.y + 1)];
-            finalColor += logPolarBuffer[float2(DTid.x + 1, DTid.y + 1)];
-
-            finalColor /= 9;
-        }
+        finalColor = sampleTexture(InColorBuffer, DTid.xy).rgb;
     }
 
-    remappedBuffer[DTid.xy] = float4(finalColor, 1.0f);
+    //Motion buffer overlay
+    if (isMotionView)
+    {
+        finalColor.rgb *= 0.5f;
+        finalColor.rg += float4(sampleTexture(InMotionBuffer, DTid.xy).xy, 0, 0).rg * 0.5f;
+    }
+
+
+    OutColorBuffer[DTid.xy] = float4(finalColor, 1.0f);
         
 }

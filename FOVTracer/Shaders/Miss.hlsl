@@ -33,5 +33,5 @@
 void Miss(inout HitInfo payload)
 {
     //Add node color calculation to include transparent objects in miss color
-    payload.ShadedColorAndHitT.rgb = float3(0.2f, 0.2f, 0.2f);
+    payload.ShadedColorAndHitT = float4(0.2f, 0.2f, 0.2f, 500000.f);
 }

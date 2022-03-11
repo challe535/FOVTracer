@@ -30,6 +30,9 @@ cbuffer ViewCB : register(b0)
 	matrix view;
 	float4 viewOriginAndTanHalfFovY;
 	float2 resolution;
+
+    matrix lastView;
+    float4 lastViewOriginAndTanHalfFovY;
 };
 
 struct MaterialCB
@@ -56,6 +59,8 @@ struct TraceParamsCB
 ConstantBuffer<TraceParamsCB> params : register(b2);
 
 RWTexture2D<float4> RTOutput				: register(u0);
+RWTexture2D<float4> MotionOutput            : register(u1);
+RWTexture2D<float4> WorldPosBuffer          : register(u2);
 
 RaytracingAccelerationStructure SceneBVH	: register(t0);
 

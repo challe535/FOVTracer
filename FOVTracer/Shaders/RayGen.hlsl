@@ -1,7 +1,7 @@
 #include "Common.hlsl"
 #include "KernelFov.hlsl"
 
-void fillOutputAtIndex(float2 index, float4 color, float maxDist)
+void fillOutputAtIndex(float2 index, float4 color, float maxDist, RWTexture2D<float4> dest)
 {
     float foveaDist = length(index - params.fovealCenter) / maxDist;
     float indexMultiplier = params.viewportRatio;
@@ -13,7 +13,7 @@ void fillOutputAtIndex(float2 index, float4 color, float maxDist)
     {
         for (float y = lowerIndex.y; y < upperIndex.y; y++)
         {
-            RTOutput[float2(x, y)] = color;  
+            dest[float2(x, y)] = color;
         }
     }
 }
@@ -23,6 +23,8 @@ void RayGen()
 {
     float2 LaunchIndex = float2(DispatchRaysIndex().xy);
     float2 LaunchDimensions = float2(DispatchRaysDimensions().xy);
+    
+    float aspectRatio = (LaunchDimensions.x / LaunchDimensions.y);
 	
     float2 fovealPoint = params.fovealCenter / params.viewportRatio;
 
@@ -36,6 +38,24 @@ void RayGen()
     float B = 2 * PI / LaunchDimensions.y;
 
     float3 finalColor = float3(0, 0, 0);
+    float2 finalMotion = float2(0, 0);
+    float4 finalWorldPosAndDepth = float4(0, 0, 0, 0);
+
+    float3 worldDelta = WorldPosBuffer[LaunchIndex.xy].xyz - viewOriginAndTanHalfFovY.xyz;
+    float4 clip = mul(view, float4(worldDelta, 0));
+
+    clip.x /= aspectRatio;
+    clip.xy /= viewOriginAndTanHalfFovY.w * clip.z;
+    clip.y = -clip.y;
+
+    clip.xy = clip.xy * 0.5 + 0.5;
+
+    float2 motion = (LaunchIndex - clip.xy * LaunchDimensions) + 0.5;
+
+    //float far = 1000.f;
+    //float near = 0.1f;
+    //float fnFactor = -far / (far - near);
+    //float4 clip = float4(float2(viewPos.xy) / viewOriginAndTanHalfFovY.w, viewPos.z * fnFactor - viewPos.w, viewPos.w * fnFactor * near);
 
 	//super sampling
     float pixelPadding = 0.1;
@@ -58,13 +78,12 @@ void RayGen()
             
                 d = ((float2(logPolar2Screen.x, logPolar2Screen.y) / LaunchDimensions.xy) * 2.f - 1.f);
             }
-
-            float aspectRatio = (LaunchDimensions.x / LaunchDimensions.y);
+            float3 vToNear = (d.x * view[0].xyz * viewOriginAndTanHalfFovY.w * aspectRatio) - (d.y * view[1].xyz * viewOriginAndTanHalfFovY.w) + view[2].xyz;
 
 	        // Setup the ray
             RayDesc ray;
             ray.Origin = viewOriginAndTanHalfFovY.xyz;
-            ray.Direction = normalize((d.x * view[0].xyz * viewOriginAndTanHalfFovY.w * aspectRatio) - (d.y * view[1].xyz * viewOriginAndTanHalfFovY.w) + view[2].xyz);
+            ray.Direction = normalize(vToNear);
             ray.TMin = 0.1f;
             ray.TMax = 100000.f;
 
@@ -94,21 +113,34 @@ void RayGen()
             );
 
             finalColor += payload.ShadedColorAndHitT.rgb;
+            finalWorldPosAndDepth.rgb += payload.ShadedColorAndHitT.w * ray.Direction + ray.Origin;
+            finalWorldPosAndDepth.a += payload.ShadedColorAndHitT.w * 0.0005;
 
             offsetY += stepSize;
         }
         offsetX += stepSize;
     }
 
-    finalColor /= pow(float(params.sqrtSamplesPerPixel), 2);
+    float avgFactor = 1 / pow(float(params.sqrtSamplesPerPixel), 2);
+
+    finalColor *= avgFactor;
+    //finalMotion *= avgFactor;
+    finalWorldPosAndDepth *= avgFactor;
+
+    finalWorldPosAndDepth.a = clamp(finalWorldPosAndDepth.a, 0, 1);
 
     if (params.isFoveatedRenderingEnabled)
     {
         RTOutput[LaunchIndex.xy] = float4(finalColor, 1.0f);
+        //MotionOutput[LaunchIndex.xy] = float4(finalMotion, 0, 0);
     }
     else
     {
-        fillOutputAtIndex(LaunchIndex.xy, float4(finalColor, 1.0f), maxCornerDist);
+        fillOutputAtIndex(LaunchIndex.xy, float4(finalColor, 1.0f), maxCornerDist, RTOutput);
+        //fillOutputAtIndex(LaunchIndex.xy, float4(finalMotion, 0, 0), maxCornerDist, MotionOutput);
     }
+
+    MotionOutput[LaunchIndex.xy] = float4(motion, 0, 0);
+    WorldPosBuffer[LaunchIndex.xy] = finalWorldPosAndDepth;
     
 }

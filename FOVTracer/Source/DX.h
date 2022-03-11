@@ -27,7 +27,7 @@
 
 namespace DX12Constants
 {
-	constexpr uint32_t descriptors_per_shader = 10;
+	constexpr uint32_t descriptors_per_shader = 12;
 }
 
 static const D3D12_HEAP_PROPERTIES UploadHeapProperties =
@@ -80,6 +80,9 @@ struct ViewCB
 	DirectX::XMMATRIX view = DirectX::XMMatrixIdentity();
 	DirectX::XMFLOAT4 viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(0, 0.f, 0.f, 0.f);
 	DirectX::XMFLOAT2 resolution = DirectX::XMFLOAT2(10, 10);
+
+	DirectX::XMMATRIX lastView = DirectX::XMMatrixIdentity();
+	DirectX::XMFLOAT4 lastViewOriginAndTanHalfFovY = DirectX::XMFLOAT4(0, 0.f, 0.f, 0.f);
 };
 
 struct D3D12Global
@@ -112,6 +115,8 @@ struct ComputeParams
 	float viewportRatio = 1.0f;
 	DirectX::XMFLOAT2 resoltion = DirectX::XMFLOAT2(1920, 1080);
 	uint32_t shouldBlur = 1;
+	uint32_t isMotionView = 0;
+	uint32_t isDepthView = 0;
 };
 
 struct D3D12Compute
@@ -199,6 +204,9 @@ struct SceneObjectResource
 struct D3D12Resources
 {
 	ID3D12Resource* DXROutput;
+	ID3D12Resource* MotionOutput;
+	ID3D12Resource* FinalMotionOutput;
+	ID3D12Resource* WorldPosBuffer;
 	ID3D12Resource* Log2CartOutput;
 
 	std::vector<SceneObjectResource> sceneObjResources;

@@ -466,7 +466,7 @@ namespace D3D12
 		ranges[0].OffsetInDescriptorsFromTableStart = 0;
 
 		ranges[1].BaseShaderRegister = 0;
-		ranges[1].NumDescriptors = 2;
+		ranges[1].NumDescriptors = 5;
 		ranges[1].RegisterSpace = 0;
 		ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 		ranges[1].OffsetInDescriptorsFromTableStart = ranges[0].NumDescriptors;
@@ -488,7 +488,7 @@ namespace D3D12
 	void Create_Compute_Heap(D3D12Global& d3d, D3D12Resources& resources, D3D12Compute& dxComp)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-		desc.NumDescriptors = 3;
+		desc.NumDescriptors = 6;
 		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
@@ -507,7 +507,7 @@ namespace D3D12
 		d3d.Device->CreateConstantBufferView(&cbvDesc, handle);
 		handle.ptr += handleIncrement;
 
-		// Create the DXR output buffer UAV
+		// Create the Color input buffer UAV
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 
@@ -516,6 +516,18 @@ namespace D3D12
 
 		// Create the Remapped output buffer UAV
 		d3d.Device->CreateUnorderedAccessView(resources.Log2CartOutput, nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// Create the Motion input buffer UAV
+		d3d.Device->CreateUnorderedAccessView(resources.MotionOutput, nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// Create the final remapped motion output buffer UAV
+		d3d.Device->CreateUnorderedAccessView(resources.FinalMotionOutput, nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// Create the WorldPos input buffer UAV
+		d3d.Device->CreateUnorderedAccessView(resources.WorldPosBuffer, nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 	}
 
@@ -539,6 +551,9 @@ namespace D3D12
 #if NAME_D3D_RESOURCES
 		resources.DXROutput->SetName(L"DXR Output Buffer");
 #endif
+		desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&resources.FinalMotionOutput));
+		Utils::Validate(hr, L"Error: failed to create final motion output buffer!");
 	}
 
 	void Update_Compute_Params(D3D12Compute& dxComp, ComputeParams& params)
@@ -873,6 +888,16 @@ namespace D3DResources
 		view = DirectX::XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&focus), XMLoadFloat3(&up));
 		invView = XMMatrixInverse(NULL, view);
 
+		//DirectX::XMMATRIX view3x3 = DirectX::XMMATRIX(
+		//	view.r[0].m128_f32[0], view.r[0].m128_f32[1], view.r[0].m128_f32[2], 0,
+		//	view.r[1].m128_f32[0], view.r[1].m128_f32[1], view.r[1].m128_f32[2], 0,
+		//	view.r[2].m128_f32[0], view.r[2].m128_f32[1], view.r[2].m128_f32[2], 0,
+		//	0,0,0,0
+		//	);
+
+		resources.viewCBData.lastView = XMMatrixInverse(NULL, XMMatrixTranspose(view));
+		resources.viewCBData.lastViewOriginAndTanHalfFovY = resources.viewCBData.viewOriginAndTanHalfFovY;
+
 		resources.viewCBData.view = XMMatrixTranspose(invView);
 		resources.viewCBData.viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(eye.x, eye.y, eye.z, tanf(fov * 0.5f));
 		resources.viewCBData.resolution = DirectX::XMFLOAT2((float)d3d.Width, (float)d3d.Height);
@@ -1101,7 +1126,7 @@ namespace DXR
 		ranges[0].OffsetInDescriptorsFromTableStart = 0;
 
 		ranges[1].BaseShaderRegister = 0;
-		ranges[1].NumDescriptors = 1;
+		ranges[1].NumDescriptors = 3;
 		ranges[1].RegisterSpace = 0;
 		ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 		ranges[1].OffsetInDescriptorsFromTableStart = ranges[0].NumDescriptors;
@@ -1581,6 +1606,14 @@ namespace DXR
 			d3d.Device->CreateUnorderedAccessView(resources.DXROutput, nullptr, &uavDesc, handle);
 			handle.ptr += handleIncrement;
 
+			// Create the Motion output buffer UAV
+			d3d.Device->CreateUnorderedAccessView(resources.MotionOutput, nullptr, &uavDesc, handle);
+			handle.ptr += handleIncrement;
+
+			// Create the WorldPos buffer UAV
+			d3d.Device->CreateUnorderedAccessView(resources.WorldPosBuffer, nullptr, &uavDesc, handle);
+			handle.ptr += handleIncrement;
+
 			// Create the DXR Top Level Acceleration Structure SRV
 			D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
 			srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -1673,11 +1706,17 @@ namespace DXR
 		desc.SampleDesc.Quality = 0;
 
 		// Create the buffer resource
-		HRESULT hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&resources.DXROutput));
+		HRESULT hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&resources.DXROutput));
 		Utils::Validate(hr, L"Error: failed to create DXR output buffer!");
 #if NAME_D3D_RESOURCES
 		resources.DXROutput->SetName(L"DXR Output Buffer");
 #endif
+		desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&resources.MotionOutput));
+		Utils::Validate(hr, L"Error: failed to create Motion output buffer!");
+
+		hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&resources.WorldPosBuffer));
+		Utils::Validate(hr, L"Error: failed to create WorldPos buffer!");
 	}
 
 	/**
@@ -1696,7 +1735,7 @@ namespace DXR
 		OutputBarriers[0].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
 		// Transition the DXR output buffer to a copy source
-		OutputBarriers[1].Transition.pResource = resources.DXROutput;
+		OutputBarriers[1].Transition.pResource = resources.Log2CartOutput;
 		OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
 		OutputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		OutputBarriers[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
@@ -1736,22 +1775,12 @@ namespace DXR
 		d3d.CmdList->SetPipelineState1(dxr.rtpso);
 		d3d.CmdList->DispatchRays(&desc);
 
-		//May need to do this after DXROutput barrier below
-		//Compute remap to cartesian coords
-		D3D12_RESOURCE_BARRIER ComputeBarrier = {};
-		ComputeBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		ComputeBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		ComputeBarrier.Transition.pResource = resources.Log2CartOutput;
-		ComputeBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
-		ComputeBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-		ComputeBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-		d3d.CmdList->ResourceBarrier(1, &ComputeBarrier);
 
+		//Compute
 		d3d.CmdList->SetDescriptorHeaps(1, &dxComp.descriptorHeap);
 		d3d.CmdList->SetPipelineState(dxComp.cps);
 		d3d.CmdList->SetComputeRootSignature(dxComp.pRootSignature);
 
-		//d3d.CmdList->SetComputeRootConstantBufferView(0, dxComp.paramCB->GetGPUVirtualAddress());
 		d3d.CmdList->SetComputeRootDescriptorTable(0, dxComp.descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 		d3d.CmdList->Dispatch(
@@ -1759,18 +1788,14 @@ namespace DXR
 			ceil(Application::GetApplication().ViewportHeight / 32.0f),
 			1);
 
-		ComputeBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-		ComputeBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
-		d3d.CmdList->ResourceBarrier(1, &ComputeBarrier);
-
-		// Transition DXR output to a copy source
+		// Transition Final output to a copy source
 		OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		OutputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
 
 		// Wait for the transitions to complete
 		d3d.CmdList->ResourceBarrier(1, &OutputBarriers[1]);
 
-		// Copy the DXR output to the back buffer
+		// Copy the Final output to the back buffer
 		d3d.CmdList->CopyResource(d3d.BackBuffer[d3d.FrameIndex], resources.Log2CartOutput);
 
 		// Transition back buffer to present
