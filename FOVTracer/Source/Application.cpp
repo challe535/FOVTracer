@@ -16,7 +16,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 	HRESULT ExitCode = EXIT_SUCCESS;
 
 	Application& App = Application::GetApplication();
-	//App.Init(1280, 720, hInstance, L"FOVTracer");
 	App.Init(1920, 1080, hInstance, L"FOVTracer");
 	App.Run();
 
@@ -66,7 +65,12 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 
 	InputHandler = new Input(ImGui::GetIO());
 
+	RayTracer.AddTargetResolution(1920, 1080, "1920x1080");
+	RayTracer.AddTargetResolution(1280, 720, "1280x720");
+
 	RayTracer.Init(Config, Window, RayScene);
+
+	//RayTracer.SetResolution("1920x1080");
 }
 
 void Application::Run()
@@ -78,11 +82,8 @@ void Application::Run()
 
 	float DeltaTime = 0.0f;
 	float FpsRunningAverage = 0.0f;
-	float FpsTrueAverage = 0.0f;
 
 	float ViewportRatio = 1.0f;
-
-	uint64_t FrameCount = 0;
 	bool LMouseClicked = false;
 
 	while (WM_QUIT != msg.message)
@@ -104,8 +105,6 @@ void Application::Run()
 		ComputeParams.fovealCenter = TraceParams.fovealCenter;
 		ComputeParams.isFoveatedRenderingEnabled = TraceParams.isFoveatedRenderingEnabled;
 		ComputeParams.kernelAlpha = TraceParams.kernelAlpha;
-		ComputeParams.viewportRatio = TraceParams.viewportRatio;
-		ComputeParams.resoltion = DirectX::XMFLOAT2(ViewportWidth, ViewportHeight);
 
 		//App specific code goes here
 		//Feed scene into tracer and tell it to trace the scene
@@ -144,9 +143,9 @@ void Application::Run()
 
 		SceneCamera.Position = SceneCamera.Position + CameraMove * DeltaTime * CameraSpeed;
 
-		ViewportHeight = WindowHeight / ViewportRatio;
-		ViewportWidth = WindowWidth / ViewportRatio;
-		TraceParams.viewportRatio = ViewportRatio;
+		//ViewportHeight = WindowHeight / ViewportRatio;
+		//ViewportWidth = WindowWidth / ViewportRatio;
+		//TraceParams.viewportRatio = ViewportRatio;
 
 		RayTracer.Update(RayScene, TraceParams, ComputeParams);
 
@@ -155,22 +154,43 @@ void Application::Run()
 		ImGui_ImplDX12_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
-
+		
 		bool opened = ImGui::Begin("Render Time", nullptr, ImGuiWindowFlags_None);
 		if (opened)
 		{
 			ImGui::Text("Frame rate: %.3f fps", FpsRunningAverage);
 			ImGui::SliderInt("Sqrt spp", reinterpret_cast<int*>(&TraceParams.sqrtSamplesPerPixel), 0, 10);
-			ImGui::SliderFloat("Viewport Ratio", &ViewportRatio, 1.0f, 3.0f);
+			//ImGui::SliderFloat("Viewport Ratio", &ViewportRatio, 1.0f, 3.0f);
+			const char* items[] = { "1920x1080", "1280x720" };
+			static const char* current_item = "1920x1080";
+
+			if (ImGui::BeginCombo("##combo", current_item)) // The second parameter is the label previewed before opening the combo.
+			{
+				for (int n = 0; n < IM_ARRAYSIZE(items); n++)
+				{
+					bool is_selected = (current_item == items[n]); // You can store your selection however you want, outside or inside your objects
+					if (ImGui::Selectable(items[n], is_selected))
+					{
+						current_item = items[n];
+						RayTracer.SetResolution(current_item);
+						if (is_selected)
+						{
+							ImGui::SetItemDefaultFocus();   // You may set the initial focus when opening the combo (scrolling + for keyboard navigation support)
+						}
+					}
+				}
+				ImGui::EndCombo();
+			}
 			ImGui::Separator();
 			ImGui::Checkbox("Use foveated rendering", reinterpret_cast<bool*>(&TraceParams.isFoveatedRenderingEnabled));
-			ImGui::SliderFloat2("Foveal point", reinterpret_cast<float*>(&TraceParams.fovealCenter), 0.f, 1920.f);
+			ImGui::SliderFloat2("Foveal point", reinterpret_cast<float*>(&TraceParams.fovealCenter), 0.f, 1.f);
 			ImGui::SliderFloat("Kernel Alpha", &TraceParams.kernelAlpha, 0.5f, 6.0f);
 			ImGui::SliderFloat("foveationFillOffset", &TraceParams.foveationFillOffset, 0.0f, 10.0f);
 			ImGui::Checkbox("Blur output", reinterpret_cast<bool*>(&ComputeParams.shouldBlur));
 			ImGui::Checkbox("Vsync", &RayTracer.D3D.Vsync);
 			ImGui::Checkbox("Motion View", reinterpret_cast<bool*>(&ComputeParams.isMotionView));
 			ImGui::Checkbox("Depth View", reinterpret_cast<bool*>(&ComputeParams.isDepthView));
+			ImGui::Checkbox("WorldPos View", reinterpret_cast<bool*>(&ComputeParams.isWorldPosView));
 		}
 		ImGui::End();
 
@@ -181,18 +201,10 @@ void Application::Run()
 
 		DeltaTime = std::chrono::duration<float>(FrameEnd - FrameStart).count();
 		ElapsedTimeS += DeltaTime;
-		FrameCount++;
 
 		float FrameFpsAverage = 1.0f / DeltaTime;
 
 		FpsRunningAverage = FpsRunningAverage * 0.9f + FrameFpsAverage * 0.1f;
-		FpsTrueAverage = 1.0f * (static_cast<float>(FrameCount) / ElapsedTimeS);
-
-		if (FrameCount % 200 == 0)
-		{
-			CORE_TRACE("FpsRunning = {0}, FpsTrue = {1}, FpsCurrent = {2}", FpsRunningAverage, FpsTrueAverage, FrameFpsAverage);
-		}
-
 		TraceParams.elapsedTimeSeconds = ElapsedTimeS;
 
 		InputHandler->OnFrameEnd();
@@ -215,3 +227,9 @@ void Application::Cleanup()
 	RayTracer.Cleanup();
 	DestroyWindow(Window);
 }
+
+void Application::Resize(LONG newWidth, LONG newHeight)
+{
+	SetWindowPos(Window, HWND_TOPMOST, 0, 0, newWidth, newHeight, SWP_NOOWNERZORDER | SWP_NOMOVE);
+}
+

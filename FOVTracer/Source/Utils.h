@@ -2,6 +2,7 @@
 
 #include "Platform.h"
 #include "StaticMesh.h"
+#include "dlss/nvsdk_ngx.h"
 
 #include "DX.h"
 
@@ -19,6 +20,8 @@ namespace Utils
 	* Checks whether HRESULT is an error and creates a error message dialouge if so.
 	*/
 	void Validate(HRESULT hr, LPCWSTR msg);
+
+	void ValidateNGX(NVSDK_NGX_Result nvr, std::string msg);
 
 	/**
 	* Loads meshes from filepath into SMeshVector.

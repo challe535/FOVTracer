@@ -1784,8 +1784,8 @@ namespace DXR
 		d3d.CmdList->SetComputeRootDescriptorTable(0, dxComp.descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 		d3d.CmdList->Dispatch(
-			ceil(Application::GetApplication().ViewportWidth / 32.0f), 
-			ceil(Application::GetApplication().ViewportHeight / 32.0f),
+			ceil(d3d.Width / 32.0f), 
+			ceil(d3d.Height / 32.0f),
 			1);
 
 		// Transition Final output to a copy source

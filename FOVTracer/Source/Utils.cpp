@@ -22,6 +22,83 @@ namespace Utils
 		}
 	}
 
+	void ValidateNGX(NVSDK_NGX_Result nvr, std::string msg)
+	{
+		if (NVSDK_NGX_FAILED(nvr))
+		{
+			switch (nvr)
+			{
+			case NVSDK_NGX_Result_FAIL_FeatureNotSupported:
+				CORE_ERROR("{0} :: Feature not supported", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_PlatformError:
+				CORE_ERROR("{0} :: Platform error", msg);
+				break;
+			
+			case NVSDK_NGX_Result_FAIL_FeatureAlreadyExists:
+				CORE_ERROR("{0} :: Feature already exists", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_FeatureNotFound:
+				CORE_ERROR("{0} :: Feature not found", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_InvalidParameter:
+				CORE_ERROR("{0} :: Invalid parameter", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_ScratchBufferTooSmall:
+				CORE_ERROR("{0} :: Scratch buffer too small", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_NotInitialized:
+				CORE_ERROR("{0} :: SDK not initialized properly", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_UnsupportedInputFormat:
+				CORE_ERROR("{0} :: Unsupported format for inout buffers", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_RWFlagMissing:
+				CORE_ERROR("{0} :: Feature input/output needs RW access (UAV)", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_MissingInput:
+				CORE_ERROR("{0} :: Feature was created with specific input but none is provided at evaluation", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_UnableToInitializeFeature:
+				CORE_ERROR("{0} :: Feature is not available on the system", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_OutOfDate:
+				CORE_ERROR("{0} :: NGX system libraries are old and need an update", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_OutOfGPUMemory:
+				CORE_ERROR("{0} :: Feature requires more GPU memory than it is available on system", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_UnsupportedFormat:
+				CORE_ERROR("{0} :: Format used in input buffer(s) is not supported by feature", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_UnableToWriteToAppDataPath:
+				CORE_ERROR("{0} :: Path provided in InApplicationDataPath cannot be written to", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_UnsupportedParameter:
+				CORE_ERROR("{0} :: Unsupported parameter was provided (e.g. specific scaling factor is unsupported)", msg);
+				break;
+
+			case NVSDK_NGX_Result_FAIL_Denied:
+				CORE_ERROR("{0} :: The feature or application was denied", msg);
+				break;
+			}
+		}
+	}
+
 	//TODO: Make recursively process nodes if needed by important scenes later.
 	bool LoadStaticMeshes(const std::string& Filepath, std::vector<StaticMesh>& SMeshVector, bool GenVertexNormals)
 	{

@@ -51,7 +51,7 @@ struct TracerParameters
 {
 	float elapsedTimeSeconds = 0.f;
 	uint32_t sqrtSamplesPerPixel = 1;
-	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(1920/2, 1080/2);
+	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(.5f, .5f);
 	uint32_t isFoveatedRenderingEnabled = 0;
 	float kernelAlpha = 1.0f;
 	float viewportRatio = 1.0f;
@@ -109,7 +109,7 @@ struct D3D12Global
 
 struct ComputeParams
 {
-	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(1920 / 2, 1080 / 2);
+	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(.5f, .5f);
 	uint32_t isFoveatedRenderingEnabled = 0;
 	float kernelAlpha = 1.0f;
 	float viewportRatio = 1.0f;
@@ -117,6 +117,7 @@ struct ComputeParams
 	uint32_t shouldBlur = 1;
 	uint32_t isMotionView = 0;
 	uint32_t isDepthView = 0;
+	uint32_t isWorldPosView = 0;
 };
 
 struct D3D12Compute

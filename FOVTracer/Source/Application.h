@@ -27,6 +27,8 @@ public:
 	*/
 	void Run();
 
+	void Resize(LONG newWidth, LONG newHeight);
+
 	/**
 	* Cleanup resources.
 	*/
