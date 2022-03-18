@@ -59,7 +59,7 @@ struct TraceParamsCB
 ConstantBuffer<TraceParamsCB> params : register(b2);
 
 RWTexture2D<float4> RTOutput				: register(u0);
-RWTexture2D<float4> MotionOutput            : register(u1);
+RWTexture2D<float2> MotionOutput            : register(u1);
 RWTexture2D<float4> WorldPosBuffer          : register(u2);
 
 RaytracingAccelerationStructure SceneBVH	: register(t0);

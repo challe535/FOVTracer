@@ -151,9 +151,6 @@
     <ClInclude Include="Source\Utils.h">
       <Filter>Source\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Platform.h">
-      <Filter>Source\App</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Quaternion.h">
       <Filter>Source\Math</Filter>
     </ClInclude>
@@ -189,6 +186,9 @@
     </ClInclude>
     <ClInclude Include="Source\imgui\imgui_impl_win32.h">
       <Filter>Source\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Platform.h">
+      <Filter>Source\Geometry</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

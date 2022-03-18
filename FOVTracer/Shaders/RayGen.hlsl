@@ -111,7 +111,7 @@ void RayGen()
     RTOutput[LaunchIndex.xy] = float4(finalColor, 1.0f);
 
     float2 motion = LaunchIndex - getClip(WorldPosBuffer[LaunchIndex].xyz, aspectRatio).xy * LaunchDimensions + 0.5;
-    MotionOutput[LaunchIndex.xy] = float4(motion, 0, 0);
+    MotionOutput[LaunchIndex.xy] = motion;
 
     WorldPosBuffer[LaunchIndex.xy] = finalWorldPosAndDepth;
 }

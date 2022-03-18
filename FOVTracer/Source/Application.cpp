@@ -70,7 +70,7 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 
 	RayTracer.Init(Config, Window, RayScene);
 
-	//RayTracer.SetResolution("1920x1080");
+	RayTracer.SetResolution("1920x1080", IsDLSSEnabled);
 }
 
 void Application::Run()
@@ -172,7 +172,7 @@ void Application::Run()
 					if (ImGui::Selectable(items[n], is_selected))
 					{
 						current_item = items[n];
-						RayTracer.SetResolution(current_item);
+						RayTracer.SetResolution(current_item, IsDLSSEnabled);
 						if (is_selected)
 						{
 							ImGui::SetItemDefaultFocus();   // You may set the initial focus when opening the combo (scrolling + for keyboard navigation support)
@@ -187,6 +187,7 @@ void Application::Run()
 			ImGui::SliderFloat("Kernel Alpha", &TraceParams.kernelAlpha, 0.5f, 6.0f);
 			ImGui::SliderFloat("foveationFillOffset", &TraceParams.foveationFillOffset, 0.0f, 10.0f);
 			ImGui::Checkbox("Blur output", reinterpret_cast<bool*>(&ComputeParams.shouldBlur));
+			ImGui::Checkbox("DLSS", &IsDLSSEnabled);
 			ImGui::Checkbox("Vsync", &RayTracer.D3D.Vsync);
 			ImGui::Checkbox("Motion View", reinterpret_cast<bool*>(&ComputeParams.isMotionView));
 			ImGui::Checkbox("Depth View", reinterpret_cast<bool*>(&ComputeParams.isDepthView));

@@ -466,7 +466,7 @@ namespace D3D12
 		ranges[0].OffsetInDescriptorsFromTableStart = 0;
 
 		ranges[1].BaseShaderRegister = 0;
-		ranges[1].NumDescriptors = 5;
+		ranges[1].NumDescriptors = 6;
 		ranges[1].RegisterSpace = 0;
 		ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 		ranges[1].OffsetInDescriptorsFromTableStart = ranges[0].NumDescriptors;
@@ -488,7 +488,7 @@ namespace D3D12
 	void Create_Compute_Heap(D3D12Global& d3d, D3D12Resources& resources, D3D12Compute& dxComp)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-		desc.NumDescriptors = 6;
+		desc.NumDescriptors = 7;
 		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
@@ -526,8 +526,12 @@ namespace D3D12
 		d3d.Device->CreateUnorderedAccessView(resources.FinalMotionOutput, nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 
-		// Create the WorldPos input buffer UAV
+		// Create the WorldPosAndDepth input buffer UAV
 		d3d.Device->CreateUnorderedAccessView(resources.WorldPosBuffer, nullptr, &uavDesc, handle);
+		handle.ptr += handleIncrement;
+
+		// Create the Depth output buffer UAV
+		d3d.Device->CreateUnorderedAccessView(resources.DLSSDepthInput, nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
 	}
 
@@ -546,14 +550,18 @@ namespace D3D12
 		desc.SampleDesc.Quality = 0;
 
 		// Create the buffer resource
-		HRESULT hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&resources.Log2CartOutput));
+		HRESULT hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&resources.Log2CartOutput));
 		Utils::Validate(hr, L"Error: failed to create remap output buffer!");
 #if NAME_D3D_RESOURCES
 		resources.DXROutput->SetName(L"DXR Output Buffer");
 #endif
-		desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		desc.Format = DXGI_FORMAT_R32G32_FLOAT;
 		hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&resources.FinalMotionOutput));
 		Utils::Validate(hr, L"Error: failed to create final motion output buffer!");
+
+		desc.Format = DXGI_FORMAT_R32_FLOAT;
+		hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&resources.DLSSDepthInput));
+		Utils::Validate(hr, L"Error: failed to create depth buffer!");
 	}
 
 	void Update_Compute_Params(D3D12Compute& dxComp, ComputeParams& params)
@@ -1685,6 +1693,27 @@ namespace DXR
 		}
 	}
 
+	void Create_DLSS_Output(D3D12Global& d3d, D3D12Resources& resources)
+	{
+		D3D12_RESOURCE_DESC desc = {};
+		desc.DepthOrArraySize = 1;
+		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+		desc.Width = d3d.Width;
+		desc.Height = d3d.Height;
+		desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		desc.MipLevels = 1;
+		desc.SampleDesc.Count = 1;
+		desc.SampleDesc.Quality = 0;
+
+		// Create the buffer resource
+		HRESULT hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&resources.DLSSOutput));
+		Utils::Validate(hr, L"Error: failed to create DLSS output buffer!");
+
+		CORE_INFO("DLSS Output created with dimensions {0}x{1}", desc.Width, desc.Height);
+	}
+
 	/**
 	* Create the DXR output buffer.
 	*/
@@ -1708,13 +1737,15 @@ namespace DXR
 		// Create the buffer resource
 		HRESULT hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&resources.DXROutput));
 		Utils::Validate(hr, L"Error: failed to create DXR output buffer!");
+
 #if NAME_D3D_RESOURCES
 		resources.DXROutput->SetName(L"DXR Output Buffer");
 #endif
-		desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		desc.Format = DXGI_FORMAT_R32G32_FLOAT;
 		hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&resources.MotionOutput));
 		Utils::Validate(hr, L"Error: failed to create Motion output buffer!");
 
+		desc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&resources.WorldPosBuffer));
 		Utils::Validate(hr, L"Error: failed to create WorldPos buffer!");
 	}
@@ -1722,7 +1753,7 @@ namespace DXR
 	/**
 	* Builds the frame's DXR command list.
 	*/
-	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp)
+	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig)
 	{
 		D3D12_RESOURCE_BARRIER OutputBarriers[2] = {};
 		D3D12_RESOURCE_BARRIER CounterBarriers[2] = {};
@@ -1734,8 +1765,8 @@ namespace DXR
 		OutputBarriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
 		OutputBarriers[0].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
-		// Transition the DXR output buffer to a copy source
-		OutputBarriers[1].Transition.pResource = resources.Log2CartOutput;
+		// Transition the DXR output buffer to a copy source 
+		OutputBarriers[1].Transition.pResource = resources.DLSSOutput;
 		OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
 		OutputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		OutputBarriers[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
@@ -1788,6 +1819,90 @@ namespace DXR
 			ceil(d3d.Height / 32.0f),
 			1);
 
+		//DLSS Layer
+		if (dlssConfig.ShouldUseDLSS)
+		{
+			D3D12_RESOURCE_BARRIER DLSSInputBarriers[3] = {};
+
+			DLSSInputBarriers[0].Transition.pResource = resources.Log2CartOutput;
+			DLSSInputBarriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+			DLSSInputBarriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			DLSSInputBarriers[0].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+			DLSSInputBarriers[1].Transition.pResource = resources.DLSSDepthInput;
+			DLSSInputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+			DLSSInputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			DLSSInputBarriers[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+			DLSSInputBarriers[2].Transition.pResource = resources.FinalMotionOutput;
+			DLSSInputBarriers[2].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+			DLSSInputBarriers[2].Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			DLSSInputBarriers[2].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+			d3d.CmdList->ResourceBarrier(3, DLSSInputBarriers);
+
+			NVSDK_NGX_Coordinates Offset;
+			Offset.X = 0;
+			Offset.Y = 0;
+
+			NVSDK_NGX_Dimensions SubRect;
+			SubRect.Width = d3d.Width;
+			SubRect.Height = d3d.Height;
+
+			NVSDK_NGX_D3D12_DLSS_Eval_Params DLSSParams;
+			DLSSParams.Feature.pInColor = resources.Log2CartOutput;
+			DLSSParams.Feature.pInOutput = resources.DLSSOutput;
+			DLSSParams.pInMotionVectors = resources.FinalMotionOutput;
+			DLSSParams.pInDepth = resources.DLSSDepthInput;
+			DLSSParams.InJitterOffsetX = 0;
+			DLSSParams.InJitterOffsetY = 0;
+			DLSSParams.InColorSubrectBase = Offset;
+			DLSSParams.InDepthSubrectBase = Offset;
+			DLSSParams.InTranslucencySubrectBase = Offset;
+			DLSSParams.InMVSubrectBase = Offset;
+			DLSSParams.InRenderSubrectDimensions = SubRect;
+
+			NGX_D3D12_EVALUATE_DLSS_EXT(d3d.CmdList, dlssConfig.DLSSFeature, dlssConfig.Params, &DLSSParams);
+
+			DLSSInputBarriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			DLSSInputBarriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+			DLSSInputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			DLSSInputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+			DLSSInputBarriers[2].Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			DLSSInputBarriers[2].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+
+			d3d.CmdList->ResourceBarrier(3, DLSSInputBarriers);
+		}
+		else
+		{
+			D3D12_RESOURCE_BARRIER Barrier = {};
+
+			Barrier.Transition.pResource = resources.Log2CartOutput;
+			Barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+			Barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+			Barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+			OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+			OutputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+
+			d3d.CmdList->ResourceBarrier(1, &Barrier);
+			d3d.CmdList->ResourceBarrier(1, &OutputBarriers[1]);
+
+			d3d.CmdList->CopyResource(resources.DLSSOutput, resources.Log2CartOutput);
+
+			OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+			OutputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+			Barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+			Barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+			d3d.CmdList->ResourceBarrier(1, &OutputBarriers[1]);
+			d3d.CmdList->ResourceBarrier(1, &Barrier);
+		}
+
 		// Transition Final output to a copy source
 		OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		OutputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
@@ -1796,34 +1911,25 @@ namespace DXR
 		d3d.CmdList->ResourceBarrier(1, &OutputBarriers[1]);
 
 		// Copy the Final output to the back buffer
-		d3d.CmdList->CopyResource(d3d.BackBuffer[d3d.FrameIndex], resources.Log2CartOutput);
+		d3d.CmdList->CopyResource(d3d.BackBuffer[d3d.FrameIndex], resources.DLSSOutput);
 
 		// Transition back buffer to present
 		OutputBarriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-		OutputBarriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		OutputBarriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 
 		// Wait for the transitions to complete
 		d3d.CmdList->ResourceBarrier(1, &OutputBarriers[0]);
 
-		//UI
-		D3D12_RESOURCE_BARRIER barrier = {};
-		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		barrier.Transition.pResource = d3d.BackBuffer[d3d.FrameIndex];
-		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		d3d.CmdList->ResourceBarrier(1, &barrier);
-
+		////UI
 		auto rtvHandle = resources.rtvHeap->GetCPUDescriptorHandleForHeapStart();
 		rtvHandle.ptr += d3d.FrameIndex * resources.rtvDescSize;
 
 		d3d.CmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, NULL);
 		d3d.CmdList->SetDescriptorHeaps(1, &resources.uiHeap);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), d3d.CmdList);
-		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-		d3d.CmdList->ResourceBarrier(1, &barrier);
+		OutputBarriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		OutputBarriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		d3d.CmdList->ResourceBarrier(1, &OutputBarriers[0]);
 
 		// Submit the command list and wait for the GPU to idle
 		D3D12::Submit_CmdList(d3d);

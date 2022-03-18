@@ -5,6 +5,8 @@
 
 #include "imgui/imgui_impl_dx12.h"
 
+#include "dlss/nvsdk_ngx.h"
+
 #include <DirectXMath.h>
 #include <DirectXPackedVector.h>
 
@@ -21,7 +23,6 @@
 #include <vector>
 #include <unordered_map>
 
-#define DXR_ENABLED 1
 #define NAME_D3D_RESOURCES 1
 
 
@@ -46,6 +47,13 @@ static const D3D12_HEAP_PROPERTIES DefaultHeapProperties =
 	0, 0
 };
 
+
+struct DLSSConfig
+{
+	bool ShouldUseDLSS = false;
+	NVSDK_NGX_Parameter* Params = nullptr;
+	NVSDK_NGX_Handle* DLSSFeature = nullptr;
+};
 
 struct TracerParameters
 {
@@ -114,7 +122,7 @@ struct ComputeParams
 	float kernelAlpha = 1.0f;
 	float viewportRatio = 1.0f;
 	DirectX::XMFLOAT2 resoltion = DirectX::XMFLOAT2(1920, 1080);
-	uint32_t shouldBlur = 1;
+	uint32_t shouldBlur = 0;
 	uint32_t isMotionView = 0;
 	uint32_t isDepthView = 0;
 	uint32_t isWorldPosView = 0;
@@ -209,6 +217,9 @@ struct D3D12Resources
 	ID3D12Resource* FinalMotionOutput;
 	ID3D12Resource* WorldPosBuffer;
 	ID3D12Resource* Log2CartOutput;
+
+	ID3D12Resource* DLSSDepthInput;
+	ID3D12Resource* DLSSOutput;
 
 	std::vector<SceneObjectResource> sceneObjResources;
 	std::unordered_map<std::string, TextureResource> Textures;
@@ -419,12 +430,13 @@ namespace DXR
 	void Create_Non_Shader_Visible_Heap(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, Scene& scene); // Creates raytracing shader heap
 
+	void Create_DLSS_Output(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_DXR_Output(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Shadow_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Create_Shadow_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Add_Alpha_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 
-	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp);
+	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig);
 
 	void Destroy(DXRGlobal& dxr);
 }

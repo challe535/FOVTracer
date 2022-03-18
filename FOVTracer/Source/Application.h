@@ -50,5 +50,7 @@ private:
 
 	float WindowWidth;
 	float WindowHeight;
+
+	bool IsDLSSEnabled = false;
 };
 
