@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <iostream>
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
+int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
@@ -52,8 +52,8 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 	Config.Instance = instance;
 	Config.Vsync = false;
 
-	WindowHeight = ViewportHeight = height;
-	WindowWidth = ViewportWidth = width;
+	WindowHeight = ViewportHeight = static_cast<float>(height);
+	WindowWidth = ViewportWidth = static_cast<float>(width);
 
 	IMGUI_CHECKVERSION();
 	UIContext = ImGui::CreateContext();
@@ -86,6 +86,8 @@ void Application::Run()
 	float ViewportRatio = 1.0f;
 	bool LMouseClicked = false;
 
+	float jitterStrength = 0.85f;
+
 	while (WM_QUIT != msg.message)
 	{
 		auto const FrameStart = std::chrono::high_resolution_clock::now();
@@ -106,36 +108,11 @@ void Application::Run()
 		ComputeParams.isFoveatedRenderingEnabled = TraceParams.isFoveatedRenderingEnabled;
 		ComputeParams.kernelAlpha = TraceParams.kernelAlpha;
 
-		//App specific code goes here
-		//Feed scene into tracer and tell it to trace the scene
-
 		Camera& SceneCamera = RayScene.SceneCamera;
 
-		float MouseSensitivity = 0.3f;
-
-		if (InputHandler->IsKeyDown(VK_RBUTTON))
-		{
-			if (!LMouseClicked)
-			{
-				InputHandler->MouseDelta = Vector2f(0, 0);
-				InputHandler->SetCursorToCenter();
-			}
-			InputHandler->SetCursorVisiblity(false);
-			InputHandler->LockMouseToCenter = true;
-			SceneCamera.Orientation *= Quaternion(MouseSensitivity * DeltaTime * InputHandler->MouseDelta.X, SceneCamera.BaseUp);
-			SceneCamera.Orientation *= Quaternion(MouseSensitivity * DeltaTime * InputHandler->MouseDelta.Y, SceneCamera.BaseRight);
-			LMouseClicked = true;
-		}
-		else
-		{
-			LMouseClicked = false;
-			InputHandler->LockMouseToCenter = false;
-			InputHandler->SetCursorVisiblity(true);
-		}
-
-		float CameraForwardMove = InputHandler->IsKeyDown(W_KEY) - InputHandler->IsKeyDown(S_KEY);
-		float CameraRightMove = InputHandler->IsKeyDown(D_KEY) - InputHandler->IsKeyDown(A_KEY);
-		float CameraUpMove = InputHandler->IsKeyDown(E_KEY) - InputHandler->IsKeyDown(Q_KEY);
+		float CameraForwardMove = static_cast<float>(InputHandler->IsKeyDown(W_KEY) - InputHandler->IsKeyDown(S_KEY));
+		float CameraRightMove = static_cast<float>(InputHandler->IsKeyDown(D_KEY) - InputHandler->IsKeyDown(A_KEY));
+		float CameraUpMove = static_cast<float>(InputHandler->IsKeyDown(E_KEY) - InputHandler->IsKeyDown(Q_KEY));
 
 		float CameraSpeed = 200.0f;
 
@@ -143,11 +120,28 @@ void Application::Run()
 
 		SceneCamera.Position = SceneCamera.Position + CameraMove * DeltaTime * CameraSpeed;
 
-		//ViewportHeight = WindowHeight / ViewportRatio;
-		//ViewportWidth = WindowWidth / ViewportRatio;
-		//TraceParams.viewportRatio = ViewportRatio;
+		float MouseSensitivity = 0.001f;
 
-		RayTracer.Update(RayScene, TraceParams, ComputeParams);
+		float CameraRoll = static_cast<float>(InputHandler->IsKeyDown(Z_KEY) - InputHandler->IsKeyDown(X_KEY));
+		float RollSensitivity = 2;
+
+		if (InputHandler->IsKeyDown(VK_LBUTTON))
+		{
+			if (!LMouseClicked)
+			{
+				InputHandler->MouseDelta = Vector2f(0, 0);
+			}
+			Vector3f Rotation = Vector3f(MouseSensitivity * InputHandler->MouseDelta.Y, MouseSensitivity * InputHandler->MouseDelta.X, CameraRoll * RollSensitivity * DeltaTime);
+			SceneCamera.Orientation *= Quaternion(Rotation.X, Rotation.Y, Rotation.Z);
+
+			LMouseClicked = true;
+		}
+		else
+		{
+			LMouseClicked = false;
+		}
+
+		RayTracer.Update(RayScene, TraceParams, ComputeParams, jitterStrength);
 
 		//// --- Rendering ---
 
@@ -160,7 +154,6 @@ void Application::Run()
 		{
 			ImGui::Text("Frame rate: %.3f fps", FpsRunningAverage);
 			ImGui::SliderInt("Sqrt spp", reinterpret_cast<int*>(&TraceParams.sqrtSamplesPerPixel), 0, 10);
-			//ImGui::SliderFloat("Viewport Ratio", &ViewportRatio, 1.0f, 3.0f);
 			const char* items[] = { "1920x1080", "1280x720" };
 			static const char* current_item = "1920x1080";
 
@@ -186,12 +179,18 @@ void Application::Run()
 			ImGui::SliderFloat2("Foveal point", reinterpret_cast<float*>(&TraceParams.fovealCenter), 0.f, 1.f);
 			ImGui::SliderFloat("Kernel Alpha", &TraceParams.kernelAlpha, 0.5f, 6.0f);
 			ImGui::SliderFloat("foveationFillOffset", &TraceParams.foveationFillOffset, 0.0f, 10.0f);
-			ImGui::Checkbox("Blur output", reinterpret_cast<bool*>(&ComputeParams.shouldBlur));
+			ImGui::SliderFloat("Jitter Strength", &jitterStrength, 0.0f, 1.5f);
 			ImGui::Checkbox("DLSS", &IsDLSSEnabled);
 			ImGui::Checkbox("Vsync", &RayTracer.D3D.Vsync);
 			ImGui::Checkbox("Motion View", reinterpret_cast<bool*>(&ComputeParams.isMotionView));
 			ImGui::Checkbox("Depth View", reinterpret_cast<bool*>(&ComputeParams.isDepthView));
 			ImGui::Checkbox("WorldPos View", reinterpret_cast<bool*>(&ComputeParams.isWorldPosView));
+
+			ImGui::Separator();
+			ImGui::Text("Gaussian Blur");
+			ImGui::SliderFloat("Blur Inner K", &ComputeParams.blurKInner, 0.0f, 40.0f);
+			ImGui::SliderFloat("Blur Outer K", &ComputeParams.blurKOuter, 0.0f, 20.0f);
+			ImGui::SliderFloat("Blur A", &ComputeParams.blurA, 0.0f, 1.0f);
 		}
 		ImGui::End();
 
@@ -207,6 +206,8 @@ void Application::Run()
 
 		FpsRunningAverage = FpsRunningAverage * 0.9f + FrameFpsAverage * 0.1f;
 		TraceParams.elapsedTimeSeconds = ElapsedTimeS;
+
+		FrameCount++;
 
 		InputHandler->OnFrameEnd();
 	}

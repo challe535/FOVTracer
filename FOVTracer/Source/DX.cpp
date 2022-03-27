@@ -316,7 +316,29 @@ namespace D3D12
 		HRESULT hr = D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &sig, &error);
 		Utils::Validate(hr, L"Error: failed to serialize root signature!");
 
-		ID3D12RootSignature* pRootSig;
+		ID3D12RootSignature* pRootSig = nullptr;
+
+		hr = d3d.Device->CreateRootSignature(0, sig->GetBufferPointer(), sig->GetBufferSize(), IID_PPV_ARGS(&pRootSig));
+		Utils::Validate(hr, L"Error: failed to create root signature!");
+
+		SAFE_RELEASE(sig);
+		SAFE_RELEASE(error);
+		return pRootSig;
+	}
+
+	ID3D12RootSignature* Create_Versioned_Root_Signature(D3D12Global& d3d, const D3D12_ROOT_SIGNATURE_DESC1& desc)
+	{
+		ID3DBlob* sig;
+		ID3DBlob* error;
+		D3D12_VERSIONED_ROOT_SIGNATURE_DESC vSigDesc = {};
+		vSigDesc.Desc_1_1 = desc;
+		vSigDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+
+		HRESULT hr = D3D12SerializeVersionedRootSignature(&vSigDesc, &sig, &error);
+		Utils::Validate(hr, L"Error: failed to serialize root signature!");
+
+		ID3D12RootSignature* pRootSig = nullptr;
+
 		hr = d3d.Device->CreateRootSignature(0, sig->GetBufferPointer(), sig->GetBufferSize(), IID_PPV_ARGS(&pRootSig));
 		Utils::Validate(hr, L"Error: failed to create root signature!");
 
@@ -502,6 +524,7 @@ namespace D3D12
 		//Create Params buffer CBV
 		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 		cbvDesc.SizeInBytes = ALIGN(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, sizeof(dxComp.paramCBData));
+
 		cbvDesc.BufferLocation = dxComp.paramCB->GetGPUVirtualAddress();
 
 		d3d.Device->CreateConstantBufferView(&cbvDesc, handle);
@@ -569,6 +592,106 @@ namespace D3D12
 		dxComp.paramCBData = params;
 		memcpy(dxComp.paramCBStart, &dxComp.paramCBData, sizeof(dxComp.paramCBData));
 	}
+
+	void Create_MipMap_Compute_Program(D3D12Global& d3d, D3D12Compute& dxComp)
+	{
+		HRESULT hr = D3DShaders::CompileComputeShader(L"Shaders\\MipMapCS.hlsl", "GenerateMipMaps", d3d.Device, &dxComp.mipProgram.csProgram);
+		Utils::Validate(hr, L"Failed to compile compute shader");
+
+		D3D12_DESCRIPTOR_RANGE1 ranges[2];
+
+		ranges[0].BaseShaderRegister = 0;
+		ranges[0].NumDescriptors = 1;
+		ranges[0].RegisterSpace = 0;
+		ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		ranges[0].OffsetInDescriptorsFromTableStart = 0;
+		ranges[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE | D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE;
+
+		ranges[1].BaseShaderRegister = 0;
+		ranges[1].NumDescriptors = 1;
+		ranges[1].RegisterSpace = 0;
+		ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		ranges[1].OffsetInDescriptorsFromTableStart = ranges[0].NumDescriptors;
+		ranges[1].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE | D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE;
+
+		//D3D12_ROOT_PARAMETER1 rangesParam = {};
+		//rangesParam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		//rangesParam.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		//rangesParam.DescriptorTable.NumDescriptorRanges = 2;
+		//rangesParam.DescriptorTable.pDescriptorRanges = ranges;
+
+		D3D12_ROOT_PARAMETER1 srvParam = {};
+		srvParam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		srvParam.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		srvParam.DescriptorTable.NumDescriptorRanges = 1;
+		srvParam.DescriptorTable.pDescriptorRanges = ranges;
+
+		D3D12_ROOT_PARAMETER1 uavParam = {};
+		uavParam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		uavParam.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		uavParam.DescriptorTable.NumDescriptorRanges = 1;
+		uavParam.DescriptorTable.pDescriptorRanges = &ranges[1];
+
+		D3D12_ROOT_PARAMETER1 constantsParam = {};
+		constantsParam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		constantsParam.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		constantsParam.Constants.Num32BitValues = 3;
+		constantsParam.Constants.RegisterSpace = 0;
+		constantsParam.Constants.ShaderRegister = 0;
+
+		//D3D12_ROOT_PARAMETER1 params[2] = { constantsParam, rangesParam };
+		D3D12_ROOT_PARAMETER1 params[3] = { constantsParam, srvParam, uavParam };
+
+		dxComp.mipSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		dxComp.mipSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		dxComp.mipSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		dxComp.mipSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		dxComp.mipSampler.MipLODBias = 0.0f;
+		dxComp.mipSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		dxComp.mipSampler.MinLOD = 0.0f;
+		dxComp.mipSampler.MaxLOD = D3D12_FLOAT32_MAX;
+		dxComp.mipSampler.MaxAnisotropy = 0;
+		dxComp.mipSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK;
+		dxComp.mipSampler.ShaderRegister = 0;
+		dxComp.mipSampler.RegisterSpace = 0;
+		dxComp.mipSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+		D3D12_ROOT_SIGNATURE_DESC1 rootDesc = {};
+		rootDesc.NumParameters = _countof(params);
+		rootDesc.pParameters = params;
+		rootDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+		rootDesc.NumStaticSamplers = 1;
+		rootDesc.pStaticSamplers = &dxComp.mipSampler;
+
+		dxComp.mipProgram.pRootSignature = D3D12::Create_Versioned_Root_Signature(d3d, rootDesc);
+	}
+
+	void Create_MipMap_PipelineState(D3D12Global& d3d, D3D12Compute& dxComp)
+	{
+		D3D12_COMPUTE_PIPELINE_STATE_DESC computePsoDesc = {};
+		computePsoDesc.pRootSignature = dxComp.mipProgram.pRootSignature;
+		D3D12_SHADER_BYTECODE byteCode;
+		byteCode.pShaderBytecode = dxComp.mipProgram.csProgram->GetBufferPointer();
+		byteCode.BytecodeLength = dxComp.mipProgram.csProgram->GetBufferSize();
+		computePsoDesc.CS = byteCode;
+
+		d3d.Device->CreateComputePipelineState(&computePsoDesc, IID_PPV_ARGS(&dxComp.mipPs));
+	}
+
+	void Create_MipMap_Heap(D3D12Global& d3d, D3D12Compute& dxComp)
+	{
+
+		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+		desc.NumDescriptors = 2;
+		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+		// Create the descriptor heap
+		HRESULT hr = d3d.Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&dxComp.mipHeap));
+		Utils::Validate(hr, L"Error: failed to create DXR CBV/SRV/UAV descriptor heap!");
+
+		//To be filled during mipmap generation
+	}
 }
 
 namespace D3DResources
@@ -608,17 +731,21 @@ namespace D3DResources
 	void Create_Texture(D3D12Global& d3d, TextureResource& textureResource, TextureInfo& textureInfo)
 	{
 		// Describe the texture
-		D3D12_RESOURCE_DESC textureDesc = {};
-		textureDesc.Width = textureInfo.width;
-		textureDesc.Height = textureInfo.height;
-		textureDesc.MipLevels = 1;
-		textureDesc.DepthOrArraySize = 1;
-		textureDesc.SampleDesc.Count = 1;
-		textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		textureResource.resourceDesc.Width = textureInfo.width;
+		textureResource.resourceDesc.Height = textureInfo.height;
+		textureResource.resourceDesc.MipLevels = static_cast<UINT>(floor(log2(fminf(
+													static_cast<float>(textureResource.textureInfo.height),
+													static_cast<float>(textureResource.textureInfo.width))))
+													+ 1);
+		textureResource.resourceDesc.DepthOrArraySize = 1;
+		textureResource.resourceDesc.SampleDesc.Count = 1;
+		textureResource.resourceDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		textureResource.resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		textureResource.resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+		textureResource.resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 
 		// Create the texture resource
-		HRESULT hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&textureResource.texture));
+		HRESULT hr = d3d.Device->CreateCommittedResource(&DefaultHeapProperties, D3D12_HEAP_FLAG_NONE, &textureResource.resourceDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&textureResource.texture));
 		Utils::Validate(hr, L"Error: failed to create texture!");
 #if NAME_D3D_RESOURCES
 		textureResource.texture->SetName(L"Texture");
@@ -692,6 +819,104 @@ namespace D3DResources
 		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
 		d3d.CmdList->ResourceBarrier(1, &barrier);
+	}
+
+	void Generate_Mips(TextureResource& textureResource, D3D12Global& d3d, D3D12Compute& dxComp)
+	{
+		//Calculate mipmap levels from texture resolution, assume power of 2 resolution for now
+		int MaxMipLevels = textureResource.resourceDesc.MipLevels;
+
+		D3D12::Submit_CmdList(d3d);
+		D3D12::WaitForGPU(d3d);
+		D3D12::Reset_CommandList(d3d);
+
+		SAFE_RELEASE(dxComp.mipHeap);
+
+		D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+		desc.NumDescriptors = MaxMipLevels;
+		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+		// Create the descriptor heap
+		HRESULT hr = d3d.Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&dxComp.mipHeap));
+		Utils::Validate(hr, L"Error: failed to create DXR CBV/SRV/UAV descriptor heap!");
+
+		D3D12_CPU_DESCRIPTOR_HANDLE CPUhandle = dxComp.mipHeap->GetCPUDescriptorHandleForHeapStart();
+		D3D12_GPU_DESCRIPTOR_HANDLE GPUhandle = dxComp.mipHeap->GetGPUDescriptorHandleForHeapStart();
+		UINT handleIncrement = d3d.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		//Prepare the shader resource view description for the source texture
+		D3D12_SHADER_RESOURCE_VIEW_DESC srcTextureSRVDesc = {};
+		srcTextureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srcTextureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srcTextureSRVDesc.Format = textureResource.resourceDesc.Format;
+		srcTextureSRVDesc.Texture2D.MipLevels = -1;
+		srcTextureSRVDesc.Texture2D.MostDetailedMip = 0;
+		d3d.Device->CreateShaderResourceView(textureResource.texture, &srcTextureSRVDesc, CPUhandle);
+		CPUhandle.ptr += handleIncrement;
+
+		//Prepare the unordered access view description for the destination texture
+		D3D12_UNORDERED_ACCESS_VIEW_DESC destTextureUAVDesc = {};
+		destTextureUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		destTextureUAVDesc.Format = textureResource.resourceDesc.Format;
+
+		//Set root signature, pso and descriptor heap
+		d3d.CmdList->SetComputeRootSignature(dxComp.mipProgram.pRootSignature);
+		d3d.CmdList->SetPipelineState(dxComp.mipPs);
+		d3d.CmdList->SetDescriptorHeaps(1, &dxComp.mipHeap);
+
+		D3D12_RESOURCE_BARRIER uavBarrier = {};
+		uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+		uavBarrier.UAV.pResource = textureResource.texture;
+
+		D3D12_RESOURCE_BARRIER textureBarrier = {};
+		textureBarrier.Transition.pResource = textureResource.texture;
+		textureBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+		textureBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+		textureBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+		d3d.CmdList->ResourceBarrier(1, &textureBarrier);
+
+		for (int mipLevel = 0; mipLevel < MaxMipLevels - 1; mipLevel++)
+		{
+			//Compute dest dimensions
+			uint32_t dstWidth = Math::max(textureResource.textureInfo.width >> (mipLevel + 1), 1);
+			uint32_t dstHeight = Math::max(textureResource.textureInfo.height >> (mipLevel + 1), 1);
+
+			//Write new UAV to uav slot of mip heap
+			//destTextureUAVDesc.Texture2D.MipSlice = 0;
+			destTextureUAVDesc.Texture2D.MipSlice = static_cast<UINT>(mipLevel);
+			d3d.Device->CreateUnorderedAccessView(textureResource.texture, nullptr, &destTextureUAVDesc, CPUhandle);
+			CPUhandle.ptr += handleIncrement;
+
+			float texelSizeX = 1.0f / dstWidth;
+			float texelSizeY = 1.0f / dstHeight;
+			float mip = static_cast<float>(mipLevel);
+
+			//Set 32bit constants of texelsize of dest to use for texcoords 
+			d3d.CmdList->SetComputeRoot32BitConstant(0, *reinterpret_cast<uint32_t*>(&texelSizeX), 0);
+			d3d.CmdList->SetComputeRoot32BitConstant(0, *reinterpret_cast<uint32_t*>(&texelSizeY), 1);
+			d3d.CmdList->SetComputeRoot32BitConstant(0, *reinterpret_cast<uint32_t*>(&mip), 2);
+
+			//Set Descriptor tables on gpu side
+			d3d.CmdList->SetComputeRootDescriptorTable(1, dxComp.mipHeap->GetGPUDescriptorHandleForHeapStart());
+			GPUhandle.ptr += handleIncrement;
+			d3d.CmdList->SetComputeRootDescriptorTable(2, GPUhandle);
+
+			//Dispatch compute on dimensions of destination tex
+			d3d.CmdList->Dispatch(Math::max(dstWidth / 8, 1u), Math::max(dstWidth / 8, 1u), 1);
+			
+			//barrier to wait on the texture to be freed up again
+			d3d.CmdList->ResourceBarrier(1, &uavBarrier);
+		}
+			
+		textureBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+		textureBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+		d3d.CmdList->ResourceBarrier(1, &textureBarrier);
+
+		D3D12::Submit_CmdList(d3d);
+		D3D12::WaitForGPU(d3d);
+		D3D12::Reset_CommandList(d3d);
 	}
 
 	/*
@@ -879,7 +1104,7 @@ namespace D3DResources
 	/**
 	* Update the view constant buffer.
 	*/
-	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera)
+	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, Vector2f& jitterOffset, Vector2f& displayResolution)
 	{
 		DirectX::XMMATRIX view, invView;
 		DirectX::XMFLOAT3 eye, focus, up;
@@ -896,19 +1121,11 @@ namespace D3DResources
 		view = DirectX::XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&focus), XMLoadFloat3(&up));
 		invView = XMMatrixInverse(NULL, view);
 
-		//DirectX::XMMATRIX view3x3 = DirectX::XMMATRIX(
-		//	view.r[0].m128_f32[0], view.r[0].m128_f32[1], view.r[0].m128_f32[2], 0,
-		//	view.r[1].m128_f32[0], view.r[1].m128_f32[1], view.r[1].m128_f32[2], 0,
-		//	view.r[2].m128_f32[0], view.r[2].m128_f32[1], view.r[2].m128_f32[2], 0,
-		//	0,0,0,0
-		//	);
-
-		resources.viewCBData.lastView = XMMatrixInverse(NULL, XMMatrixTranspose(view));
-		resources.viewCBData.lastViewOriginAndTanHalfFovY = resources.viewCBData.viewOriginAndTanHalfFovY;
-
 		resources.viewCBData.view = XMMatrixTranspose(invView);
 		resources.viewCBData.viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(eye.x, eye.y, eye.z, tanf(fov * 0.5f));
-		resources.viewCBData.resolution = DirectX::XMFLOAT2((float)d3d.Width, (float)d3d.Height);
+		resources.viewCBData.displayResolution = DirectX::XMFLOAT2(displayResolution.X, displayResolution.Y);
+
+		resources.viewCBData.jitterOffset = DirectX::XMFLOAT2(jitterOffset.X, jitterOffset.Y);
 
 		memcpy(resources.viewCBStart, &resources.viewCBData, sizeof(resources.viewCBData));
 	}
@@ -1153,10 +1370,26 @@ namespace DXR
 
 		D3D12_ROOT_PARAMETER rootParams[1] = { param0 };
 
+		dxr.rayTextureSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		dxr.rayTextureSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		dxr.rayTextureSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		dxr.rayTextureSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		dxr.rayTextureSampler.MipLODBias = 0.0f;
+		dxr.rayTextureSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		dxr.rayTextureSampler.MinLOD = 0.0f;
+		dxr.rayTextureSampler.MaxLOD = D3D12_FLOAT32_MAX;
+		dxr.rayTextureSampler.MaxAnisotropy = 0;
+		dxr.rayTextureSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK;
+		dxr.rayTextureSampler.ShaderRegister = 0;
+		dxr.rayTextureSampler.RegisterSpace = 0;
+		dxr.rayTextureSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
 		D3D12_ROOT_SIGNATURE_DESC rootDesc = {};
 		rootDesc.NumParameters = _countof(rootParams);
 		rootDesc.pParameters = rootParams;
 		rootDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+		rootDesc.NumStaticSamplers = 1;
+		rootDesc.pStaticSamplers = &dxr.rayTextureSampler;
 
 		// Create the root signature
 		dxr.rgs.pRootSignature = D3D12::Create_Root_Signature(d3d, rootDesc);
@@ -1658,37 +1891,43 @@ namespace DXR
 			d3d.Device->CreateShaderResourceView(resources.sceneObjResources[i].vertexBuffer, &vertexSRVDesc, handle);
 			handle.ptr += handleIncrement;
 
+			auto& diffuseTex = resources.Textures[resources.sceneObjResources[i].diffuseTexKey];
+
 			// Create the material texture SRV
 			D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
-			textureSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			textureSRVDesc.Format = diffuseTex.resourceDesc.Format;
 			textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-			textureSRVDesc.Texture2D.MipLevels = 1;
+			textureSRVDesc.Texture2D.MipLevels = diffuseTex.resourceDesc.MipLevels;
 			textureSRVDesc.Texture2D.MostDetailedMip = 0;
 			textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
-			d3d.Device->CreateShaderResourceView(resources.Textures[resources.sceneObjResources[i].diffuseTexKey].texture, &textureSRVDesc, handle);
+			d3d.Device->CreateShaderResourceView(diffuseTex.texture, &textureSRVDesc, handle);
 			handle.ptr += handleIncrement;
+
+			auto& normalTex = resources.Textures[resources.sceneObjResources[i].normalTexKey];
 
 			// Create the normals texture SRV
 			D3D12_SHADER_RESOURCE_VIEW_DESC normalsSRVDesc = {};
-			normalsSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			normalsSRVDesc.Format = normalTex.resourceDesc.Format;
 			normalsSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-			normalsSRVDesc.Texture2D.MipLevels = 1;
+			normalsSRVDesc.Texture2D.MipLevels = normalTex.resourceDesc.MipLevels;
 			normalsSRVDesc.Texture2D.MostDetailedMip = 0;
 			normalsSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
-			d3d.Device->CreateShaderResourceView(resources.Textures[resources.sceneObjResources[i].normalTexKey].texture, &normalsSRVDesc, handle);
+			d3d.Device->CreateShaderResourceView(normalTex.texture, &normalsSRVDesc, handle);
 			handle.ptr += handleIncrement;
+
+			auto& opacityTex = resources.Textures[resources.sceneObjResources[i].opacityTexKey];
 
 			// Create the opacity map SRV
 			D3D12_SHADER_RESOURCE_VIEW_DESC opacitySRVDesc = {};
-			opacitySRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			opacitySRVDesc.Format = opacityTex.resourceDesc.Format;
 			opacitySRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-			opacitySRVDesc.Texture2D.MipLevels = 1;
+			opacitySRVDesc.Texture2D.MipLevels = opacityTex.resourceDesc.MipLevels;
 			opacitySRVDesc.Texture2D.MostDetailedMip = 0;
 			opacitySRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
-			d3d.Device->CreateShaderResourceView(resources.Textures[resources.sceneObjResources[i].opacityTexKey].texture, &opacitySRVDesc, handle);
+			d3d.Device->CreateShaderResourceView(opacityTex.texture, &opacitySRVDesc, handle);
 			handle.ptr += handleIncrement;
 		}
 	}
@@ -1815,9 +2054,9 @@ namespace DXR
 		d3d.CmdList->SetComputeRootDescriptorTable(0, dxComp.descriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 		d3d.CmdList->Dispatch(
-			ceil(d3d.Width / 32.0f), 
-			ceil(d3d.Height / 32.0f),
-			1);
+			static_cast<UINT>(ceil(d3d.Width / 32.0f)), 
+			static_cast<UINT>(ceil(d3d.Height / 32.0f)),
+			1u);
 
 		//DLSS Layer
 		if (dlssConfig.ShouldUseDLSS)
@@ -1850,19 +2089,27 @@ namespace DXR
 			SubRect.Height = d3d.Height;
 
 			NVSDK_NGX_D3D12_DLSS_Eval_Params DLSSParams;
+
+			memset(&DLSSParams, 0, sizeof(DLSSParams));
+
 			DLSSParams.Feature.pInColor = resources.Log2CartOutput;
 			DLSSParams.Feature.pInOutput = resources.DLSSOutput;
 			DLSSParams.pInMotionVectors = resources.FinalMotionOutput;
 			DLSSParams.pInDepth = resources.DLSSDepthInput;
-			DLSSParams.InJitterOffsetX = 0;
-			DLSSParams.InJitterOffsetY = 0;
+			DLSSParams.InJitterOffsetX = dlssConfig.JitterOffset.X;
+			DLSSParams.InJitterOffsetY = -dlssConfig.JitterOffset.Y;
+			DLSSParams.Feature.InSharpness = dlssConfig.sharpness;
+			DLSSParams.InReset = false;
+			DLSSParams.InMVScaleX = 1;
+			DLSSParams.InMVScaleY = 1;
 			DLSSParams.InColorSubrectBase = Offset;
 			DLSSParams.InDepthSubrectBase = Offset;
 			DLSSParams.InTranslucencySubrectBase = Offset;
 			DLSSParams.InMVSubrectBase = Offset;
 			DLSSParams.InRenderSubrectDimensions = SubRect;
 
-			NGX_D3D12_EVALUATE_DLSS_EXT(d3d.CmdList, dlssConfig.DLSSFeature, dlssConfig.Params, &DLSSParams);
+			NVSDK_NGX_Result nvr = NGX_D3D12_EVALUATE_DLSS_EXT(d3d.CmdList, dlssConfig.DLSSFeature, dlssConfig.Params, &DLSSParams);
+			Utils::ValidateNGX(nvr, "DLSS Evaluation");
 
 			DLSSInputBarriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 			DLSSInputBarriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
@@ -1890,7 +2137,7 @@ namespace DXR
 
 			d3d.CmdList->ResourceBarrier(1, &Barrier);
 			d3d.CmdList->ResourceBarrier(1, &OutputBarriers[1]);
-
+			
 			d3d.CmdList->CopyResource(resources.DLSSOutput, resources.Log2CartOutput);
 
 			OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;

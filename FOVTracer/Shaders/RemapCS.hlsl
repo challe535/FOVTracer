@@ -8,12 +8,16 @@ cbuffer ParamsCB : register(b0)
     float2 fovealCenter;
     bool isFoveatedRenderingEnabled;
     float kernelAlpha;
-    float viewportRatio;
     float2 resolution;
-    bool shouldBlur;
+    float2 jitterOffset;
+    float blurKInner;
+    float blurKOuter;
+    float blurA;
+
     bool isMotionView;
     bool isDepthView;
     bool isWorldPosView;
+
 }
 
 RWTexture2D<float4> InColorBuffer : register(u0);
@@ -24,47 +28,32 @@ RWTexture2D<float4> WorldPosBuffer : register(u4);
 RWTexture2D<float> DepthOutBuffer : register(u5);
 
 
-float4 sampleTexture(RWTexture2D<float4> buffer, float2 index)
+float4 sampleTexture(RWTexture2D<float4> buffer, float2 index, int kernelSize)
 {
-    
-    float4 result = buffer[index];
+    float4 result = 0;
 
-    if (shouldBlur)
+    if (isFoveatedRenderingEnabled)
     {
-        result += buffer[float2(index.x - 1, index.y) % resolution];
-        result += buffer[float2(index.x + 1, index.y) % resolution];
-        result += buffer[float2(index.x, index.y - 1) % resolution];
-        result += buffer[float2(index.x, index.y + 1) % resolution];
+        int kernelCenter = kernelSize / 2;
+        float sigma = 0.85 * kernelCenter;
+        float kernelSum = 0;
+        for (int i = -kernelCenter; i < kernelSize - kernelCenter; i++)
+        {
+            for (int j = -kernelCenter; j < kernelSize - kernelCenter; j++)
+            {
+                float t = -(pow(i, 2) + pow(j, 2)) / (2 * pow(sigma, 2));
+                float gauss = clamp(exp(t) / (2 * PI * pow(sigma, 2)), 0, 1);
 
-        result += buffer[float2(index.x - 1, index.y - 1) % resolution];
-        result += buffer[float2(index.x + 1, index.y - 1) % resolution];
-        result += buffer[float2(index.x - 1, index.y + 1) % resolution];
-        result += buffer[float2(index.x + 1, index.y + 1) % resolution];
+                result += buffer[float2(index.x + i, index.y + j) % resolution] * gauss;
+                kernelSum += gauss;
+            }
+        }
 
-        result /= 9;
+        result /= kernelSum;
     }
-
-    return result;
-}
-
-float2 sampleTexture(RWTexture2D<float2> buffer, float2 index)
-{
-    
-    float2 result = buffer[index];
-
-    if (shouldBlur)
+    else
     {
-        result += buffer[float2(index.x - 1, index.y) % resolution];
-        result += buffer[float2(index.x + 1, index.y) % resolution];
-        result += buffer[float2(index.x, index.y - 1) % resolution];
-        result += buffer[float2(index.x, index.y + 1) % resolution];
-
-        result += buffer[float2(index.x - 1, index.y - 1) % resolution];
-        result += buffer[float2(index.x + 1, index.y - 1) % resolution];
-        result += buffer[float2(index.x - 1, index.y + 1) % resolution];
-        result += buffer[float2(index.x + 1, index.y + 1) % resolution];
-
-        result /= 9;
+        result = buffer[index];
     }
 
     return result;
@@ -82,6 +71,9 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     float2 sampleIndex = LaunchIndex;
     float maxCornerDist;
     float2 relativePoint;
+
+    int kernelSize = 0;
+
     if (isFoveatedRenderingEnabled)
     {
         float2 fovealPoint = fovealCenter * resolution;
@@ -96,20 +88,34 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
 
         relativePoint = LaunchIndex - fovealPoint;
 
-        float u = kernelFuncInv(log(length(relativePoint)) / L, kernelAlpha) * resolution.x;
+        float uNorm = kernelFuncInv(log(length(relativePoint)) / L, kernelAlpha);
+        float u = uNorm * resolution.x;
         float v = (atan2(relativePoint.y, relativePoint.x) + (relativePoint.y < 0 ? 1 : 0) * 2 * PI) * resolution.y / (2 * PI);
 
         sampleIndex = float2(u, v);
 
+        //float jitterAttenuation = 1 - pow(smoothstep(0, 1, kernelFunc(u, kernelAlpha)), 0.5);
+        //sampleIndex += jitterOffset * jitterAttenuation;
+
+        float c = 1.5;
+        float t = ceil(blurA - uNorm);
+        float kInner = blurKInner;
+        float kOuter = blurKOuter;
+        float inner = kInner * pow(uNorm - blurA, 2) + c;
+        float outer = kOuter * pow(uNorm - blurA, 2) + c;
+        
+        float n = t * inner + (1 - t) * outer;
+
+        kernelSize = 1 + 2 * floor(n);
     }
 
-    finalColor = sampleTexture(InColorBuffer, sampleIndex).rgb;
-    depth = sampleTexture(WorldPosBuffer, sampleIndex).a;
-    motion = sampleTexture(InMotionBuffer, sampleIndex).xy;
+    finalColor = sampleTexture(InColorBuffer, sampleIndex, kernelSize).rgb;
+    depth = WorldPosBuffer[sampleIndex].a;
+    motion = InMotionBuffer[sampleIndex].xy;
 
     if (isWorldPosView)
     {
-        finalColor = sampleTexture(WorldPosBuffer, sampleIndex).xyz;
+        finalColor = sampleTexture(WorldPosBuffer, sampleIndex, kernelSize).xyz;
     }
     else if (isDepthView)
     {

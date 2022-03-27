@@ -4,6 +4,7 @@
 #include "Utils.h"
 #include "Application.h"
 
+
 #define APP_ID 231313132
 
 
@@ -12,6 +13,9 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 	D3D.Height = config.Height;
 	D3D.Width = config.Width;
 	D3D.Vsync = config.Vsync;
+
+	TargetRes.Width = D3D.Width;
+	TargetRes.Height = D3D.Height;
 
 	SceneToTrace = &scene;
 
@@ -25,6 +29,10 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 	D3D12::Create_CommandList(D3D);
 	D3D12::Reset_CommandList(D3D);
 
+	D3D12::Create_MipMap_Compute_Program(D3D, DXCompute);
+	D3D12::Create_MipMap_PipelineState(D3D, DXCompute);
+	D3D12::Create_MipMap_Heap(D3D, DXCompute);
+
 	for (int i = 0; i < scene.SceneObjects.size(); i++)
 		AddObject(scene.SceneObjects[i], i);
 
@@ -37,98 +45,47 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 	InitRenderPipeline(scene);
 	InitImGUI();
 	InitNGX();
-
-	//D3DResources::Create_Descriptor_Heaps(D3D, Resources);
-	//D3DResources::Create_BackBuffer_RTV(D3D, Resources);
-	//D3DResources::Create_View_CB(D3D, Resources);
-	//D3DResources::Create_UIHeap(D3D, Resources);
-	//D3DResources::Create_Params_CB(D3D, Resources);
-
-	//// Create DXR specific resources
-	//DXR::Create_Bottom_Level_AS(D3D, DXR, Resources, scene);
-	//DXR::Create_Top_Level_AS(D3D, DXR, Resources);
-	//DXR::Create_DXR_Output(D3D, Resources);
-
-
-	//DXR::Create_Non_Shader_Visible_Heap(D3D, Resources);
-	//DXR::Create_Descriptor_Heaps(D3D, DXR, Resources, scene);
-
-	//DXR::Create_RayGen_Program(D3D, DXR, ShaderCompiler);
-	//DXR::Create_Miss_Program(D3D, DXR, ShaderCompiler);
-	//DXR::Create_Closest_Hit_Program(D3D, DXR, ShaderCompiler);
-	//DXR::Create_Shadow_Hit_Program(D3D, DXR, ShaderCompiler);
-	//DXR::Create_Shadow_Miss_Program(D3D, DXR, ShaderCompiler);
-	//DXR::Add_Alpha_AnyHit_Program(D3D, DXR, ShaderCompiler);
-	//DXR::Create_Pipeline_State_Object(D3D, DXR);
-	//DXR::Create_Shader_Table(D3D, DXR, Resources);
-
-	//D3D12::Create_Compute_Params_CB(D3D, DXCompute);
-	//D3D12::Create_Compute_Program(D3D, DXCompute);
-	//D3D12::Create_Compute_PipelineState(D3D, DXCompute);
-	//D3D12::Create_Compute_Output(D3D, Resources);
-	//D3D12::Create_Compute_Heap(D3D, Resources, DXCompute);
-
-	//D3D.CmdList->Close();
-	//ID3D12CommandList* pGraphicsList = { D3D.CmdList };
-	//D3D.CmdQueue->ExecuteCommandLists(1, &pGraphicsList);
-
-	//D3D12::WaitForGPU(D3D);
-	//D3D12::Reset_CommandList(D3D);
-
-	//D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle = Resources.uiHeap->GetCPUDescriptorHandleForHeapStart();
-	//D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle = Resources.uiHeap->GetGPUDescriptorHandleForHeapStart();
-
-	//ImGui_ImplDX12_Init(D3D.Device, 2,
-	//	DXGI_FORMAT_R8G8B8A8_UNORM, Resources.uiHeap,
-	//	CPUHandle,
-	//	GPUHandle);
-
-	//NVSDK_NGX_Result nvr = NVSDK_NGX_D3D12_Init(APP_ID, L"Logs", D3D.Device);
-	//Utils::ValidateNGX(nvr, "SDK Init");
-
-	//nvr = NVSDK_NGX_D3D12_GetCapabilityParameters(&Params);
-	//Utils::ValidateNGX(nvr, "GetCapabilityParameters");
-
-	//if (CheckDLSSIsSupported())
-	//{
-	//	IsDLSSAvailable = true;
-
-	//	for (Resolution Res : TargetRenderResolutions)
-	//	{
-	//		unsigned int optWidth = 0, optHeight = 0, maxWidth = 0, maxHeight = 0, minWidth = 0, minHeight = 0;
-	//		float sharpness = 0.0f;
-
-	//		NVSDK_NGX_Result nvr = NGX_DLSS_GET_OPTIMAL_SETTINGS(Params, Res.Width, Res.Height, NVSDK_NGX_PerfQuality_Value_Balanced, &optWidth, &optHeight,
-	//			&maxWidth, &maxHeight, &minWidth, &minHeight, &sharpness);
-	//		Utils::ValidateNGX(nvr, "DLSS Optimal settings");
-
-	//		Resolution OptRes;
-	//		OptRes.Name = Res.Name;
-	//		OptRes.Width = optWidth;
-	//		OptRes.Height = optHeight;
-
-	//		CORE_TRACE("{0} optimal resolution is {1}x{2}", OptRes.Name, OptRes.Width, OptRes.Height);
-
-	//		OptimalRenderResolutions.insert_or_assign(OptRes.Name, OptRes);
-	//	}
-	//}
 }
 
-void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cParams)
+void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cParams, float jitterStrength)
 {
-	params.viewportRatio = 1920  / D3D.Width;
+	if (TargetRes.Width == 0 || TargetRes.Height == 0)
+	{
+		CORE_ERROR("Invalid target resolution: {0}x{1}", TargetRes.Width, TargetRes.Height);
+		return;
+	}
 
-	cParams.viewportRatio = params.viewportRatio;
+	if (DLSSConfigInfo.ShouldUseDLSS /*&& !params.isFoveatedRenderingEnabled*/)
+	{
+
+		float RenderTargetRatio = static_cast<float>(TargetRes.Width) / D3D.Width;
+		uint64_t TotalPhase = 8u * static_cast<uint64_t>(ceilf(RenderTargetRatio * RenderTargetRatio));
+
+		uint64_t HaltonIndex = Application::GetApplication().FrameCount % TotalPhase;
+
+		DLSSConfigInfo.JitterOffset.X = Math::haltonF(HaltonIndex, 2.f) - 0.5f;
+		DLSSConfigInfo.JitterOffset.Y = Math::haltonF(HaltonIndex, 3.f) - 0.5f;
+
+		DLSSConfigInfo.JitterOffset = DLSSConfigInfo.JitterOffset * jitterStrength;
+	}
+	else
+	{
+		DLSSConfigInfo.JitterOffset.X = 0;
+		DLSSConfigInfo.JitterOffset.Y = 0;
+	}
+
+	params.viewportRatio = 1920  / D3D.Width;
+	params.isDLSSEnabled = DLSSConfigInfo.ShouldUseDLSS;
+
 	cParams.resoltion = DirectX::XMFLOAT2(D3D.Width, D3D.Height);
+	cParams.jitterOffset = DirectX::XMFLOAT2(DLSSConfigInfo.JitterOffset.X, DLSSConfigInfo.JitterOffset.Y);
+
+	Vector2f displayRes(TargetRes.Width, TargetRes.Height);
 
 	D3DResources::Update_Params_CB(Resources, params);
-	D3DResources::Update_View_CB(D3D, Resources, scene.SceneCamera);
+	D3DResources::Update_View_CB(D3D, Resources, scene.SceneCamera, DLSSConfigInfo.JitterOffset, displayRes);
 	D3D12::Update_Compute_Params(DXCompute, cParams);
 
-
-	//To change viewport width and height in the future use preset resolutions that have been queried for optimal resolution.
-	//D3D.Width = Application::GetApplication().ViewportWidth;
-	//D3D.Height = Application::GetApplication().ViewportHeight;
 }
 
 void Tracer::Render()
@@ -182,8 +139,11 @@ TextureResource Tracer::LoadTexture(std::string TextureName)
 
 	TextureResource NewTexture;
 
-	NewTexture.textureInfo = Utils::LoadTexture(TextureName, Resources);
+	NewTexture.textureInfo = Utils::LoadTexture(TextureName, Resources, 4);
 	D3DResources::Create_Texture(D3D, NewTexture, NewTexture.textureInfo);
+
+	//Generate mipmaps
+	D3DResources::Generate_Mips(NewTexture, D3D, DXCompute);
 
 	Resources.Textures.insert_or_assign(TextureName, NewTexture);
 
@@ -247,9 +207,12 @@ void Tracer::SetResolution(const char* ResolutionName, bool IsDLSSEnabled)
 	Resolution RenderRes = TargetRes;
 	if (IsDLSSEnabled)
 	{
-		RenderRes = OptimalRenderResolutions.at(NameStr);
+		//RenderRes = OptimalRenderResolutions.at(NameStr);
 		NVSDK_NGX_PerfQuality_Value Quality = NVSDK_NGX_PerfQuality_Value_Balanced;
-		DLSSConfigInfo.ShouldUseDLSS = CreateDLSSFeature(Quality, RenderRes, TargetRes, false);
+		RenderRes = QueryOptimalResolution(TargetRes, Quality, DLSSConfigInfo.sharpness);
+		DLSSConfigInfo.ShouldUseDLSS = CreateDLSSFeature(Quality, RenderRes, TargetRes, true);
+
+		CORE_INFO("DLSS Sharpness set to {0}", DLSSConfigInfo.sharpness);
 	}
 		
 	D3D.Width = RenderRes.Width;
@@ -269,7 +232,6 @@ void Tracer::AddTargetResolution(unsigned int Width, unsigned int Height, const 
 	NewRes.Width = Width;
 	NewRes.Height = Height;
 
-	TargetRenderResolutions.push_back(NewRes);
 	TargetRenderResolutionsMap.insert_or_assign(NewRes.Name, NewRes);
 }
 
@@ -285,14 +247,11 @@ bool Tracer::CreateDLSSFeature(NVSDK_NGX_PerfQuality_Value Quality, Resolution O
 	unsigned int VisibilityNodeMask = 1;
 	NVSDK_NGX_Result ResultDLSS = NVSDK_NGX_Result_Fail;
 
-	int MotionVectorResolutionLow = 1; // we let the Snippet do the upsampling of the motion vector
-	// Next create features	
+
 	int DlssCreateFeatureFlags = NVSDK_NGX_DLSS_Feature_Flags_None;
-	DlssCreateFeatureFlags |= MotionVectorResolutionLow ? NVSDK_NGX_DLSS_Feature_Flags_MVLowRes : 0;
-	//DlssCreateFeatureFlags |= isContentHDR ? NVSDK_NGX_DLSS_Feature_Flags_IsHDR : 0;
-	//DlssCreateFeatureFlags |= depthInverted ? NVSDK_NGX_DLSS_Feature_Flags_DepthInverted : 0;
+	DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_MVLowRes;
+	//DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_MVJittered;
 	DlssCreateFeatureFlags |= EnableSharpening ? NVSDK_NGX_DLSS_Feature_Flags_DoSharpening : 0;
-	//DlssCreateFeatureFlags |= enableAutoExposure ? NVSDK_NGX_DLSS_Feature_Flags_AutoExposure : 0;
 
 	NVSDK_NGX_DLSS_Create_Params DlssCreateParams;
 
@@ -334,6 +293,7 @@ void Tracer::InitRenderPipeline(Scene& scene)
 
 	// Create DXR specific resources
 	DXR::Create_DXR_Output(D3D, Resources);
+	D3D12::Create_Compute_Output(D3D, Resources);
 
 	DXR::Create_Non_Shader_Visible_Heap(D3D, Resources);
 	DXR::Create_Descriptor_Heaps(D3D, DXR, Resources, scene);
@@ -350,7 +310,6 @@ void Tracer::InitRenderPipeline(Scene& scene)
 	D3D12::Create_Compute_Params_CB(D3D, DXCompute);
 	D3D12::Create_Compute_Program(D3D, DXCompute);
 	D3D12::Create_Compute_PipelineState(D3D, DXCompute);
-	D3D12::Create_Compute_Output(D3D, Resources);
 	D3D12::Create_Compute_Heap(D3D, Resources, DXCompute);
 
 	D3D.CmdList->Close();
@@ -369,29 +328,26 @@ void Tracer::InitNGX()
 	nvr = NVSDK_NGX_D3D12_GetCapabilityParameters(&DLSSConfigInfo.Params);
 	Utils::ValidateNGX(nvr, "GetCapabilityParameters");
 
-	if (CheckDLSSIsSupported())
-	{
-		IsDLSSAvailable = true;
+	IsDLSSAvailable = CheckDLSSIsSupported();
+}
 
-		for (Resolution Res : TargetRenderResolutions)
-		{
-			unsigned int optWidth = 0, optHeight = 0, maxWidth = 0, maxHeight = 0, minWidth = 0, minHeight = 0;
-			float sharpness = 0.0f;
+Resolution Tracer::QueryOptimalResolution(Resolution& TargetResolution, NVSDK_NGX_PerfQuality_Value Quality, float& outSharpness)
+{
+	unsigned int optWidth = 0, optHeight = 0, maxWidth = 0, maxHeight = 0, minWidth = 0, minHeight = 0;
+	//float sharpness = 0.0f;
 
-			NVSDK_NGX_Result nvr = NGX_DLSS_GET_OPTIMAL_SETTINGS(DLSSConfigInfo.Params, Res.Width, Res.Height, NVSDK_NGX_PerfQuality_Value_Balanced, &optWidth, &optHeight,
-				&maxWidth, &maxHeight, &minWidth, &minHeight, &sharpness);
-			Utils::ValidateNGX(nvr, "DLSS Optimal settings");
+	NVSDK_NGX_Result nvr = NGX_DLSS_GET_OPTIMAL_SETTINGS(DLSSConfigInfo.Params, TargetResolution.Width, TargetResolution.Height, Quality, &optWidth, &optHeight,
+		&maxWidth, &maxHeight, &minWidth, &minHeight, &outSharpness);
+	Utils::ValidateNGX(nvr, "DLSS Optimal settings");
 
-			Resolution OptRes;
-			OptRes.Name = Res.Name;
-			OptRes.Width = optWidth;
-			OptRes.Height = optHeight;
+	Resolution OptRes;
+	OptRes.Name = TargetResolution.Name;
+	OptRes.Width = optWidth;
+	OptRes.Height = optHeight;
 
-			CORE_TRACE("{0} optimal resolution is {1}x{2}", OptRes.Name, OptRes.Width, OptRes.Height);
+	CORE_TRACE("{0} optimal resolution is {1}x{2}", OptRes.Name, OptRes.Width, OptRes.Height);
 
-			OptimalRenderResolutions.insert_or_assign(OptRes.Name, OptRes);
-		}
-	}
+	return OptRes;
 }
 
 void Tracer::InitImGUI()

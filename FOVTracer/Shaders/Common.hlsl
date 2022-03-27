@@ -29,10 +29,9 @@ cbuffer ViewCB : register(b0)
 {
 	matrix view;
 	float4 viewOriginAndTanHalfFovY;
-	float2 resolution;
+	float2 displayResolution;
 
-    matrix lastView;
-    float4 lastViewOriginAndTanHalfFovY;
+    float2 jitterOffset;
 };
 
 struct MaterialCB
@@ -54,6 +53,7 @@ struct TraceParamsCB
     float kernelAlpha;
     float viewportRatio;
     float foveationFillOffset;
+    bool isDLSSEnabled;
 };
 
 ConstantBuffer<TraceParamsCB> params : register(b2);
@@ -70,6 +70,8 @@ Texture2D<float4> albedo					: register(t3);
 Texture2D<float4> normals					: register(t4);
 Texture2D<float4> opacity					: register(t5);
 
+SamplerState BilinearClamp : register(s0);
+
 struct VertexAttributes
 {
 	float3 position;
@@ -77,6 +79,7 @@ struct VertexAttributes
 	float3 normal;
     float3 tangent;
     float3 binormal;
+    float3 triCross;
 };
 
 uint3 GetIndices(uint triangleIndex)
@@ -96,10 +99,14 @@ VertexAttributes GetVertexAttributes(uint triangleIndex, float3 barycentrics)
     v.tangent = float3(0, 0, 0);
     v.binormal = float3(0, 0, 0);
 
+    float3 vps[3] = { float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0) };
+
 	for (uint i = 0; i < 3; i++)
 	{
 		int address = (indices[i] * 14) * 4;
-		v.position += asfloat(vertices.Load3(address)) * barycentrics[i];
+        float3 vpos = asfloat(vertices.Load3(address));
+        v.position += vpos * barycentrics[i];
+        vps[i] = vpos;
 		address += (3 * 4);
 		v.uv += asfloat(vertices.Load2(address)) * barycentrics[i];
 		address += (2 * 4);
@@ -109,6 +116,8 @@ VertexAttributes GetVertexAttributes(uint triangleIndex, float3 barycentrics)
         address += (3 * 4);
         v.binormal += asfloat(vertices.Load3(address)) * barycentrics[i];
     }
+
+    v.triCross = cross(vps[1] - vps[0], vps[2] - vps[0]);
 
 	return v;
 }

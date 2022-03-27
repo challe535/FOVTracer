@@ -18,8 +18,8 @@ public:
 
 	//from angle axis
 	Quaternion(float a, Vector3f axis) {
-		s = cos(0.5f * a);
-		v = axis * sin(0.5f * a);
+		s = cosf(0.5f * a);
+		v = axis * sinf(0.5f * a);
 		euler = to_euler();
 	}
 
@@ -48,7 +48,7 @@ public:
 		Vector3f eulers;
 
 		float rad2deg = 360.0f / DirectX::XM_2PI;
-		eulers = Vector3f(fmod(euler.X * rad2deg, 360.0f), fmod(euler.Y * rad2deg, 360.0f), fmod(euler.Z * rad2deg, 360.0f));
+		eulers = Vector3f(fmodf(euler.X * rad2deg, 360.0f), fmodf(euler.Y * rad2deg, 360.0f), fmodf(euler.Z * rad2deg, 360.0f));
 
 		return eulers;
 	}
@@ -107,7 +107,7 @@ private:
 
 
 		float rad2deg = 360.0f / DirectX::XM_2PI;
-		eulers = Vector3f(fmod(eulers.X * rad2deg, 360.0f), fmod(eulers.Y * rad2deg, 360.0f), fmod(eulers.Z * rad2deg, 360.0f));
+		eulers = Vector3f(fmodf(eulers.X * rad2deg, 360.0f), fmodf(eulers.Y * rad2deg, 360.0f), fmodf(eulers.Z * rad2deg, 360.0f));
 
 		return eulers;
 	}

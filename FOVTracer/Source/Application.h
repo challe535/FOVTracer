@@ -37,19 +37,20 @@ public:
 	static Application& GetApplication() { static Application Instance; return Instance; };
 
 public:
-	Input* InputHandler;
+	Input* InputHandler = nullptr;
 	float ElapsedTimeS = 0.f;
+	uint64_t FrameCount = 0u;
 
-	float ViewportWidth;
-	float ViewportHeight;
+	float ViewportWidth = 0.0f;
+	float ViewportHeight = 0.0f;
 private:
 	HWND Window = nullptr;
 	ImGuiContext* UIContext = nullptr;
 	Tracer RayTracer;
 	Scene RayScene;
 
-	float WindowWidth;
-	float WindowHeight;
+	float WindowWidth = 0.0f;
+	float WindowHeight = 0.0f;
 
 	bool IsDLSSEnabled = false;
 };

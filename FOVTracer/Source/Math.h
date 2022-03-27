@@ -5,9 +5,12 @@
 #include "Vector2.h"
 #include "Quaternion.h"
 
+#include <random>
+
 
 namespace Math
 {
+
 	template<class T>
 	T max(T x, T y)
 	{
@@ -16,4 +19,7 @@ namespace Math
 
 	float sign(float x);
 
+	float randRangeUniformF(float lower, float upper);
+
+	float haltonF(uint64_t index, float base);
 }

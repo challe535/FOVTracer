@@ -134,6 +134,7 @@
     <ClInclude Include="Source\AppWindow.h" />
     <ClInclude Include="Source\Camera.h" />
     <ClInclude Include="Source\Core.h" />
+    <ClInclude Include="Source\d3dx12.h" />
     <ClInclude Include="Source\DX.h" />
     <ClInclude Include="Source\DXMathUtil.h" />
     <ClInclude Include="Source\imgui\imconfig.h" />
@@ -174,6 +175,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
     <FxCompile Include="Shaders\KernelFov.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="Shaders\MipMapCS.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>

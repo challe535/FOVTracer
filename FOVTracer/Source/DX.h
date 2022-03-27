@@ -53,6 +53,9 @@ struct DLSSConfig
 	bool ShouldUseDLSS = false;
 	NVSDK_NGX_Parameter* Params = nullptr;
 	NVSDK_NGX_Handle* DLSSFeature = nullptr;
+
+	Vector2f JitterOffset;
+	float sharpness = 0.f;
 };
 
 struct TracerParameters
@@ -64,6 +67,7 @@ struct TracerParameters
 	float kernelAlpha = 1.0f;
 	float viewportRatio = 1.0f;
 	float foveationFillOffset = 0.0f;
+	uint32_t isDLSSEnabled = 0;
 };
 
 struct TextureInfo
@@ -87,10 +91,9 @@ struct ViewCB
 {
 	DirectX::XMMATRIX view = DirectX::XMMatrixIdentity();
 	DirectX::XMFLOAT4 viewOriginAndTanHalfFovY = DirectX::XMFLOAT4(0, 0.f, 0.f, 0.f);
-	DirectX::XMFLOAT2 resolution = DirectX::XMFLOAT2(10, 10);
+	DirectX::XMFLOAT2 displayResolution = DirectX::XMFLOAT2(10, 10);
 
-	DirectX::XMMATRIX lastView = DirectX::XMMatrixIdentity();
-	DirectX::XMFLOAT4 lastViewOriginAndTanHalfFovY = DirectX::XMFLOAT4(0, 0.f, 0.f, 0.f);
+	DirectX::XMFLOAT2 jitterOffset = DirectX::XMFLOAT2(0, 0);
 };
 
 struct D3D12Global
@@ -120,12 +123,22 @@ struct ComputeParams
 	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(.5f, .5f);
 	uint32_t isFoveatedRenderingEnabled = 0;
 	float kernelAlpha = 1.0f;
-	float viewportRatio = 1.0f;
 	DirectX::XMFLOAT2 resoltion = DirectX::XMFLOAT2(1920, 1080);
-	uint32_t shouldBlur = 0;
+	DirectX::XMFLOAT2 jitterOffset = DirectX::XMFLOAT2(0, 0);
+	float blurKInner = 5.0f;
+	float blurKOuter = 5.0f;
+	float blurA = 0.6f;
+
 	uint32_t isMotionView = 0;
 	uint32_t isDepthView = 0;
 	uint32_t isWorldPosView = 0;
+
+};
+
+struct ComputeProgram
+{
+	ID3DBlob* csProgram = nullptr;
+	ID3D12RootSignature* pRootSignature = nullptr;
 };
 
 struct D3D12Compute
@@ -133,13 +146,18 @@ struct D3D12Compute
 	ID3DBlob* csProgram = nullptr;
 	ID3D12RootSignature* pRootSignature = nullptr;
 
+	ComputeProgram mipProgram;
+	D3D12_STATIC_SAMPLER_DESC mipSampler = {};
+
 	ID3D12Resource* paramCB = nullptr;
 	ComputeParams paramCBData;
 	UINT8* paramCBStart = nullptr;
 
 	ID3D12DescriptorHeap* descriptorHeap = nullptr;
+	ID3D12DescriptorHeap* mipHeap = nullptr;
 
 	ID3D12PipelineState* cps = nullptr;
+	ID3D12PipelineState* mipPs = nullptr;
 };
 
 struct D3D12ShaderCompilerInfo
@@ -190,6 +208,7 @@ struct TextureResource
 	TextureInfo textureInfo;
 	ID3D12Resource* texture = nullptr;
 	ID3D12Resource* textureUploadResource = nullptr;
+	D3D12_RESOURCE_DESC resourceDesc = {};
 };
 
 struct SceneObjectResource
@@ -353,6 +372,8 @@ struct DXRGlobal
 	HitProgram										hit;
 	HitProgram										shadow_hit;
 
+	D3D12_STATIC_SAMPLER_DESC rayTextureSampler = {};
+
 	ID3D12StateObject* rtpso = nullptr;
 	ID3D12StateObjectProperties* rtpsoInfo = nullptr;
 };
@@ -393,6 +414,10 @@ namespace D3D12
 	void Create_Compute_Heap(D3D12Global& d3d, D3D12Resources& resources, D3D12Compute& dxComp);
 	void Create_Compute_Output(D3D12Global& d3d, D3D12Resources& resources);
 	void Update_Compute_Params(D3D12Compute& dxComp, ComputeParams& params);
+
+	void Create_MipMap_Compute_Program(D3D12Global& d3d, D3D12Compute& dxComp);
+	void Create_MipMap_PipelineState(D3D12Global& d3d, D3D12Compute& dxComp);
+	void Create_MipMap_Heap(D3D12Global& d3d, D3D12Compute& dxComp);
 }
 
 namespace D3DResources
@@ -410,9 +435,10 @@ namespace D3DResources
 	void Create_UIHeap(D3D12Global& d3d, D3D12Resources& resources);
 
 	void Update_Params_CB(D3D12Resources& resources, TracerParameters& params);
-	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera);
+	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, Vector2f& jitterOffset, Vector2f& displayResolution);
 
 	void Upload_Texture(D3D12Global& d3d, ID3D12Resource* destResource, ID3D12Resource* srcResource, const TextureInfo& texture);
+	void Generate_Mips(TextureResource& textureResource, D3D12Global& d3d, D3D12Compute& dxComp);
 
 	void Destroy(D3D12Resources& resources);
 }

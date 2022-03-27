@@ -15,6 +15,27 @@ float4 getClip(float3 worldPos, float aspect)
     return clip;
 }
 
+float2 LogPolar2Screen(float2 logIndex, float2 dimensions, float2 fovealPoint, float B, float L)
+{
+    return exp(L * kernelFunc(logIndex.x / dimensions.x, params.kernelAlpha)) * float2(cos(B * logIndex.y), sin(B * logIndex.y)) + fovealPoint;
+}
+
+float3 GetRayDir(float2 index, float2 dimensions, float aspectRatio, float2 fovealPoint, float B, float L)
+{
+    float2 d = ((index / dimensions.xy) * 2.f - 1.f);
+    if (params.isFoveatedRenderingEnabled)
+    {
+        float2 logPolar2Screen = LogPolar2Screen(index, dimensions, fovealPoint, B, L);
+        //exp(L * kernelFunc(index.x / dimensions.x, params.kernelAlpha)) * float2(cos(B * index.y), sin(B * index.y)) + fovealPoint;
+            
+        d = ((float2(logPolar2Screen.x, logPolar2Screen.y) / dimensions.xy) * 2.f - 1.f);
+    }
+    float3 vToNear = (d.x * view[0].xyz * viewOriginAndTanHalfFovY.w * aspectRatio) - (d.y * view[1].xyz * viewOriginAndTanHalfFovY.w) + view[2].xyz;
+
+    return normalize(vToNear);
+
+}
+
 [shader("raygeneration")]
 void RayGen()
 {
@@ -45,25 +66,25 @@ void RayGen()
     float offsetX = stepSize;
     float offsetY = stepSize;
 
+    float jitterAttenuation = 1 - kernelFunc(LaunchIndex.x / LaunchDimensions.x, params.kernelAlpha);
+    float2 jitter = jitterOffset * (params.isFoveatedRenderingEnabled ? jitterAttenuation : 1);
+    //float2 jitter = jitterOffset;
+
     for (int i = 0; i < params.sqrtSamplesPerPixel; i++)
     {
         offsetY = stepSize;
         for (int j = 0; j < params.sqrtSamplesPerPixel; j++)
         {
             float2 AdjustedIndex = LaunchIndex + float2(offsetX, offsetY);
-            float2 d = ((AdjustedIndex / LaunchDimensions.xy) * 2.f - 1.f);
-            if (params.isFoveatedRenderingEnabled)
-            {
-                float2 logPolar2Screen = exp(L * kernelFunc(AdjustedIndex.x / LaunchDimensions.x, params.kernelAlpha)) * float2(cos(B * AdjustedIndex.y), sin(B * AdjustedIndex.y)) + fovealPoint;
-            
-                d = ((float2(logPolar2Screen.x, logPolar2Screen.y) / LaunchDimensions.xy) * 2.f - 1.f);
-            }
-            float3 vToNear = (d.x * view[0].xyz * viewOriginAndTanHalfFovY.w * aspectRatio) - (d.y * view[1].xyz * viewOriginAndTanHalfFovY.w) + view[2].xyz;
+            float2 JitteredIndex = AdjustedIndex + jitter;
+
+            float3 rayDir = GetRayDir(AdjustedIndex, LaunchDimensions, aspectRatio, fovealPoint, B, L);
+            float3 jitterDir = GetRayDir(JitteredIndex, LaunchDimensions, aspectRatio, fovealPoint, B, L);
 
 	        // Setup the ray
             RayDesc ray;
             ray.Origin = viewOriginAndTanHalfFovY.xyz;
-            ray.Direction = normalize(vToNear);
+            ray.Direction = jitterDir;
             ray.TMin = 0.1f;
             ray.TMax = 100000.f;
 
@@ -93,7 +114,7 @@ void RayGen()
             );
 
             finalColor += payload.ShadedColorAndHitT.rgb;
-            finalWorldPosAndDepth.rgb += payload.ShadedColorAndHitT.w * ray.Direction + ray.Origin;
+            finalWorldPosAndDepth.rgb += payload.ShadedColorAndHitT.w * rayDir + ray.Origin;
             finalWorldPosAndDepth.a += payload.ShadedColorAndHitT.w;
 
             offsetY += stepSize;
@@ -109,8 +130,9 @@ void RayGen()
     finalWorldPosAndDepth.a = clamp(finalWorldPosAndDepth.a * 0.0005, 0, 1);
 
     RTOutput[LaunchIndex.xy] = float4(finalColor, 1.0f);
-
-    float2 motion = LaunchIndex - getClip(WorldPosBuffer[LaunchIndex].xyz, aspectRatio).xy * LaunchDimensions + 0.5;
+    
+    float2 motionIndex = params.isFoveatedRenderingEnabled ? LogPolar2Screen(LaunchIndex + 0.5, LaunchDimensions, fovealPoint, B, L) : LaunchIndex + 0.5;
+    float2 motion = motionIndex - getClip(WorldPosBuffer[LaunchIndex].xyz, aspectRatio).xy * LaunchDimensions;
     MotionOutput[LaunchIndex.xy] = motion;
 
     WorldPosBuffer[LaunchIndex.xy] = finalWorldPosAndDepth;

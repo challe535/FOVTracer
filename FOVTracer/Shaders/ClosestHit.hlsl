@@ -1,4 +1,5 @@
 #include "Common.hlsl"
+#include "KernelFov.hlsl"
 
 struct PointLightInfo
 {
@@ -7,8 +8,11 @@ struct PointLightInfo
     float luminocity;
 };
 
-bool IsShadowed(float3 lightDir, float3 origin, float maxDist)
+bool IsShadowed(float3 lightDir, float3 origin, float maxDist, float3 normal)
 {
+    if (dot(normal, lightDir) < 0)
+        return true;
+
     RayDesc ray;
     ray.Origin = origin;
     ray.Direction = lightDir;
@@ -16,7 +20,7 @@ bool IsShadowed(float3 lightDir, float3 origin, float maxDist)
     ray.TMax = maxDist;
 
     ShadowHitInfo shadowPayload;
-    shadowPayload.isHit = false;
+    shadowPayload.isHit = true;
 
     TraceRay(
 		SceneBVH,
@@ -46,11 +50,31 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
 	VertexAttributes vertex = GetVertexAttributes(triangleIndex, barycentrics);
 
     int2 coord = floor(frac(vertex.uv) * material.textureResolution.xy);
-    
+
+    float2 pixelSize = 1.0f/DispatchRaysDimensions();
+    float2 indexNorm = float2(DispatchRaysIndex().xy) * pixelSize;
+
+    float maxSize = max(pixelSize.x, pixelSize.y);
+    float3 vBase = normalize(WorldRayDirection()) * length(view[2].xyz);
+    float3 v1 = normalize(vBase + normalize(view[0].xyz) * maxSize);
+    float a = 2 * (sqrt(-(dot(normalize(WorldRayDirection()), v1) - 1) * 2));
+
+    float coneFactor = a * (RayTCurrent() + 100) / abs(dot(normalize(vertex.triCross), WorldRayDirection()));
+    float lodBias = 0;
+
+    if (params.isFoveatedRenderingEnabled)
+        lodBias += 3 * pow(smoothstep(0, 1, kernelFunc(indexNorm.x, params.kernelAlpha)), 3);
+
+    if (params.isDLSSEnabled)
+        lodBias += log2(DispatchRaysDimensions().x / displayResolution.x) - 1.0f + 0.0001;
+
+    float lod = clamp(lodBias + log2(coneFactor), 0, 9);
+
     float4 diffuse = float4(1, 1, 0, 1);
     if (material.hasDiffuseTexture)
     {
-        diffuse = albedo.Load(int3(coord, 0));
+        //diffuse = albedo.Load(int3(coord, 0));
+        diffuse = albedo.SampleLevel(BilinearClamp, vertex.uv, lod);
     }
 
     if (material.hasNormalMap)
@@ -61,7 +85,7 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     // --- Light ---
     PointLightInfo plInfo;
 
-    plInfo.position = float3(0, 700 + 100 * sin(params.elapsedTimeSeconds), 0);
+    plInfo.position = float3(0, 700 /*+ 100 * sin(params.elapsedTimeSeconds)*/, 0);
     plInfo.color = float3(0.9, 0.9, 1.0);
     plInfo.luminocity = 1000000.0;
 
@@ -71,14 +95,17 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     float distToLight = length(lightV);
 
     float ambient = 0.3;
-    float factor = IsShadowed(lightDir, worldOrigin, distToLight) ? ambient : 1.0;
+    float factor = IsShadowed(lightDir, worldOrigin, distToLight, vertex.normal) ? ambient : 1.0;
 
     float3 color = factor * diffuse.rgb * max(dot(lightDir, vertex.normal), ambient) * plInfo.color * plInfo.luminocity / pow(distToLight, 2);
 
-    //TODO: Maybe avoidable to always do this loop if no transparency was encountered
+    //TODO: Maybe avoidable to always do this loop if no transparency was encountered. Minor improvement expected though...
     [unroll]
     for (int i = 0; i < K; i++)
         color += (1 - payload.node[i].transmit) * payload.node[i].color;
 
     payload.ShadedColorAndHitT = float4(color, RayTCurrent());
+    //payload.ShadedColorAndHitT = float4(float3(lod, lod, lod) / 9, RayTCurrent());
+    //payload.ShadedColorAndHitT = float4(float3(fovealDist, fovealDist, fovealDist), RayTCurrent());
+    //payload.ShadedColorAndHitT = float4(float3(a, a, a) * 200, RayTCurrent());
 }

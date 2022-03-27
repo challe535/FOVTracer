@@ -15,11 +15,17 @@ void Input::UpdateMouseInfo()
 	POINT CursorPos;
 	GetCursorPos(&CursorPos);
 
-	MousePos = PrimaryScreenSize * 0.5f;
-	MouseDelta = Vector2f(CursorPos.x - MousePos.X, CursorPos.y - MousePos.Y);
+	//MousePos = PrimaryScreenSize * 0.5f;
+	//MouseDelta = Vector2f(static_cast<float>(CursorPos.x) - MousePos.X, static_cast<float>(CursorPos.y) - MousePos.Y);
+	
+	MouseDelta = Vector2f(static_cast<float>(CursorPos.x) - MousePos.X, static_cast<float>(CursorPos.y) - MousePos.Y);
+	MousePos = Vector2f(static_cast<float>(CursorPos.x), static_cast<float>(CursorPos.y));
 
 	if (LockMouseToCenter)
-		SetCursorPos(MousePos.X, MousePos.Y);
+	{
+		CORE_INFO("Cursor reset");
+		SetCursorToCenter();
+	}
 }
 
 uint8_t Input::IsKeyDown(KeyCode Code)
@@ -32,9 +38,6 @@ uint8_t Input::IsKeyDown(KeyCode Code)
 
 void Input::SetCursorToCenter()
 {
-	if (IO->WantCaptureMouse)
-		return;
-
 	Vector2f Center = PrimaryScreenSize * 0.5f;
 	SetCursorPos(Center.X, Center.Y);
 }

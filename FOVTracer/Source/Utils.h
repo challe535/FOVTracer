@@ -6,7 +6,6 @@
 
 #include "DX.h"
 
-
 #define PATH_TO_RESOURCES "./Resources/"
 
 namespace Utils
@@ -31,9 +30,9 @@ namespace Utils
 	/**
 	* Loads a texture with stb_image and returns its data.
 	*/
-	TextureInfo LoadTexture(std::string filepath, D3D12Resources& resources);
+	TextureInfo LoadTexture(std::string filepath, D3D12Resources& resources, UINT channelBytes);
 
-	void FormatTexture(TextureInfo& info, UINT8* pixels);
+	void FormatTexture(TextureInfo& info, UINT8* pixels, UINT newStride);
 
 	struct SFallbackTexture
 	{

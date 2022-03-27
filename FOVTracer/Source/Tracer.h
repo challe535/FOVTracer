@@ -11,8 +11,8 @@
 struct Resolution
 {
 	std::string Name;
-	unsigned int Width;
-	unsigned int Height;
+	unsigned int Width = 0;
+	unsigned int Height = 0;
 };
 
 struct TracerConfigInfo 
@@ -28,7 +28,7 @@ class Tracer
 {
 public:
 	void Init(TracerConfigInfo& config, HWND& window, Scene& scene);
-	void Update(Scene& scene, TracerParameters& params, ComputeParams& cParams);
+	void Update(Scene& scene, TracerParameters& params, ComputeParams& cParams, float jitterStrength);
 	void Render();
 	void Cleanup();
 	void SetResolution(const char* ResolutionName, bool IsDLSSEnabled);
@@ -57,12 +57,12 @@ protected:
 	bool CheckDLSSIsSupported();
 	bool CreateDLSSFeature(NVSDK_NGX_PerfQuality_Value Quality, Resolution OptimalRenderSize, Resolution DisplayOutSize, bool EnableSharpening);
 
+	Resolution QueryOptimalResolution(Resolution& Res, NVSDK_NGX_PerfQuality_Value Quality, float& outSharpness);
+
 	Resolution TargetRes;
 	Scene* SceneToTrace = nullptr;
 
-	std::unordered_map<std::string, Resolution> OptimalRenderResolutions;
 	std::unordered_map<std::string, Resolution> TargetRenderResolutionsMap;
-	std::vector<Resolution> TargetRenderResolutions;
 
 	bool IsDLSSAvailable = false;
 	bool IsDLSSFeatureInitialized = false;

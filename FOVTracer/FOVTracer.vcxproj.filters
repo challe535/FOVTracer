@@ -190,6 +190,9 @@
     <ClInclude Include="Source\Platform.h">
       <Filter>Source\Geometry</Filter>
     </ClInclude>
+    <ClInclude Include="Source\d3dx12.h">
+      <Filter>Source</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shaders\ClosestHit.hlsl">
@@ -217,6 +220,9 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="Shaders\KernelFov.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\MipMapCS.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

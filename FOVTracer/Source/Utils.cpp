@@ -300,7 +300,7 @@ namespace Utils
 	/**
 	* Load an image
 	*/
-	TextureInfo LoadTexture(std::string filepath, D3D12Resources& resources)
+	TextureInfo LoadTexture(std::string filepath, D3D12Resources& resources, UINT channelBytes)
 	{
 		//if (resources.Textures.count(filepath) > 0)
 		//	return resources.Textures.at(filepath).textureInfo;
@@ -322,7 +322,7 @@ namespace Utils
 			result.stride = fallback->stride;
 		}
 
-		FormatTexture(result, pixels);
+		FormatTexture(result, pixels, channelBytes);
 		stbi_image_free(pixels);
 
 		return result;
@@ -331,15 +331,13 @@ namespace Utils
 	/**
 	* Format the loaded texture into the layout we use with D3D12.
 	*/
-	void FormatTexture(TextureInfo& info, UINT8* pixels)
+	void FormatTexture(TextureInfo& info, UINT8* pixels, UINT newStride)
 	{
-		const 
-
 		const UINT numPixels = (info.width * info.height);
 		const UINT oldStride = info.stride;
 		const UINT oldSize = (numPixels * info.stride);
 
-		const UINT newStride = 4;				// uploading textures to GPU as DXGI_FORMAT_R8G8B8A8_UNORM
+		//const UINT newStride = 4;				// uploading textures to GPU as DXGI_FORMAT_R8G8B8A8_UNORM
 		const UINT newSize = (numPixels * newStride);
 		info.pixels.resize(newSize);
 

@@ -11,12 +11,14 @@ typedef UINT_PTR KeyCode;
 #define D_KEY 0x44
 #define Q_KEY 0x51
 #define E_KEY 0x45
+#define Z_KEY 0x5A
+#define X_KEY 0x58
 
 class Input
 {
 public:
 	Input(ImGuiIO& io) :
-		PrimaryScreenSize(Vector2f(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN))) 
+		PrimaryScreenSize(Vector2f(static_cast<float>(GetSystemMetrics(SM_CXSCREEN)), static_cast<float>(GetSystemMetrics(SM_CYSCREEN))))
 	{
 		IO = &io;
 	};
