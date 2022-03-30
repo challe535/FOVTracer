@@ -29,11 +29,10 @@ class Tracer
 public:
 	void Init(TracerConfigInfo& config, HWND& window, Scene& scene);
 	void Update(Scene& scene, TracerParameters& params, ComputeParams& cParams, float jitterStrength);
-	void Render();
+	void Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp);
 	void Cleanup();
 	void SetResolution(const char* ResolutionName, bool IsDLSSEnabled, float viewportRatio, bool useViewportRatio);
 	void AddTargetResolution(unsigned int Width, unsigned int Height, const std::string& Name);
-	void DumpFrameToFile(int quality);
 
 	D3D12Global D3D = {};
 	D3D12Resources Resources = {};
@@ -59,6 +58,8 @@ protected:
 	bool CreateDLSSFeature(NVSDK_NGX_PerfQuality_Value Quality, Resolution OptimalRenderSize, Resolution DisplayOutSize, bool EnableSharpening);
 
 	Resolution QueryOptimalResolution(Resolution& Res, NVSDK_NGX_PerfQuality_Value Quality, float& outSharpness);
+
+	std::string DumpFrameToFile(const char* name);
 
 	Resolution TargetRes;
 	Scene* SceneToTrace = nullptr;

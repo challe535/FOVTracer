@@ -451,6 +451,7 @@ namespace D3DResources
 	void Create_ReadBackResources(D3D12Global& d3d, D3D12Resources& resources);
 
 	void Update_Params_CB(D3D12Resources& resources, TracerParameters& params);
+	void Update_SPP(D3D12Resources& resources, uint32_t newSpp);
 	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, Vector2f& jitterOffset, Vector2f& displayResolution);
 
 	void Upload_Texture(D3D12Global& d3d, ID3D12Resource* destResource, ID3D12Resource* srcResource, const TextureInfo& texture);
@@ -478,7 +479,7 @@ namespace DXR
 	void Create_Shadow_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Add_Alpha_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 
-	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig);
+	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested);
 
 	void Destroy(DXRGlobal& dxr);
 }

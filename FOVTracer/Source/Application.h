@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core.h"
+#include "AppWindow.h"
 #include "Tracer.h"
 #include "Input.h"
 #include "imgui/imgui.h"

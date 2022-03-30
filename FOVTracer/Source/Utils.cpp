@@ -355,8 +355,8 @@ namespace Utils
 		info.stride = newStride;
 	}
 
-	bool DumpJPG(const char* name, int width, int height, int comp, const void* data, int quality)
+	bool DumpPNG(const char* name, int width, int height, int comp, const void* data)
 	{
-		return stbi_write_jpg(name, width, height, comp, data, quality);
+		return stbi_write_png(name, width, height, comp, data, 0);
 	}
 }

@@ -98,12 +98,39 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 
 }
 
-void Tracer::Render()
+void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp)
 {
-	DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo);
+	DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, scrshotRequested);
 	D3D12::Present(D3D);
 	D3D12::MoveToNextFrame(D3D);
 	D3D12::Reset_CommandList(D3D);
+
+	if (scrshotRequested)
+	{
+		auto test = DumpFrameToFile("scrshot");
+
+		uint32_t currentSpp = Resources.paramCBData.sqrtSamplesPerPixel;
+
+		D3DResources::Update_SPP(Resources, groundTruthSqrtSpp);
+
+		//Additionally turn off DLSS and disable foveated rendering
+
+		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, scrshotRequested);
+		D3D12::MoveToNextFrame(D3D);
+		D3D12::Reset_CommandList(D3D);
+
+		D3DResources::Update_SPP(Resources, currentSpp);
+
+		auto ref = DumpFrameToFile("scrshot_gt");
+
+		std::string cmdLine("../FLIP/flip-cuda.exe --reference ");
+		cmdLine.append(ref).append(" --test ").append(test).append(" -d ../ImageDumps/FLIP/");
+		std::wstring wcmdLine(cmdLine.begin(), cmdLine.end());
+
+		CORE_TRACE("Running FLIP");
+		AppWindow::Startup(L"../FLIP/flip-cuda.exe", wcmdLine.data());
+
+	}
 }
 
 void Tracer::Cleanup()
@@ -385,15 +412,8 @@ void Tracer::InitImGUI()
 }
 
 
-void Tracer::DumpFrameToFile(int quality)
+std::string Tracer::DumpFrameToFile(const char* name)
 {
-	//D3D.CmdList->CopyResource(Resources.OutputReadBack, Resources.DLSSOutput);
-	//D3D.CmdList->Close();
-	//D3D12::Submit_CmdList(D3D);
-	//D3D12::WaitForGPU(D3D);
-	//D3D12::Reset_CommandList(D3D);
-	//D3D12::MoveToNextFrame(D3D);
-	
 	D3D12_RANGE ReadbackRange;
 	ReadbackRange.Begin = 0;
 	ReadbackRange.End = TargetRes.Width * TargetRes.Height;
@@ -409,13 +429,15 @@ void Tracer::DumpFrameToFile(int quality)
 	Resources.OutputReadBack->Map(0, &ReadbackRange, reinterpret_cast<void**>(&pData));
 
 	std::string destPath("../ImageDumps/");
-	destPath = destPath.append("scrshot_").append(timeStr).append(".jpg");
+	destPath = destPath.append(name).append("_").append(timeStr).append(".png");
 
-	if (Utils::DumpJPG(destPath.c_str(), TargetRes.Width, TargetRes.Height, 4, pData, quality))
+	if (Utils::DumpPNG(destPath.c_str(), TargetRes.Width, TargetRes.Height, 4, pData))
 		CORE_INFO("Screenshot successfully saved to {0}", destPath);
 	else
 		CORE_ERROR("Failed to take screenshot!");
 
 	D3D12_RANGE EmptyRange{ 0, 0 };
 	Resources.OutputReadBack->Unmap(0, &EmptyRange);
+
+	return destPath;
 }

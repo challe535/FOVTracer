@@ -65,8 +65,8 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     if (params.isFoveatedRenderingEnabled)
         lodBias += 3 * pow(smoothstep(0, 1, kernelFunc(indexNorm.x, params.kernelAlpha)), 3);
 
-    //if (params.isDLSSEnabled)
-    //    lodBias += log2(DispatchRaysDimensions().x / displayResolution.x) - 1.0f + 0.0001;
+    if (params.isDLSSEnabled && !params.isFoveatedRenderingEnabled)
+        lodBias += log2(DispatchRaysDimensions().x / displayResolution.x) - 1.0f + 0.0001;
 
     float lod = clamp(lodBias + log2(coneFactor), 0, 9);
 

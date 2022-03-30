@@ -45,5 +45,5 @@ namespace Utils
 
 	SFallbackTexture* GetFallbackTexture();
 
-	bool DumpJPG(const char* name, int width, int height, int comp, const void* data, int quality);
+	bool DumpPNG(const char* name, int width, int height, int comp, const void* data);
 }

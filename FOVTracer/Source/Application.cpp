@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "Application.h"
-#include "AppWindow.h"
 #include "Log.h"
 
 #include "imgui/imgui_impl_win32.h"
@@ -199,10 +198,7 @@ void Application::Run()
 		ImGui::End();
 
 		ImGui::Render();
-		RayTracer.Render();
-
-		if (InputHandler->IsKeyJustPressed(P_KEY))
-			RayTracer.DumpFrameToFile(50);
+		RayTracer.Render(InputHandler->IsKeyJustPressed(P_KEY), 3);
 
 		auto const FrameEnd = std::chrono::high_resolution_clock::now();
 

@@ -1139,6 +1139,12 @@ namespace D3DResources
 		memcpy(resources.paramCBStart, &resources.paramCBData, sizeof(resources.paramCBData));
 	}
 
+	void Update_SPP(D3D12Resources& resources, uint32_t newSpp)
+	{
+		resources.paramCBData.sqrtSamplesPerPixel = newSpp;
+		memcpy(resources.paramCBStart, &resources.paramCBData, sizeof(resources.paramCBData));
+	}
+
 	/**
 	 * Release the resources.
 	 */
@@ -2012,7 +2018,7 @@ namespace DXR
 	/**
 	* Builds the frame's DXR command list.
 	*/
-	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig)
+	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested)
 	{
 		D3D12_RESOURCE_BARRIER OutputBarriers[2] = {};
 		D3D12_RESOURCE_BARRIER CounterBarriers[2] = {};
@@ -2180,30 +2186,33 @@ namespace DXR
 		// Copy the Final output to the back buffer
 		d3d.CmdList->CopyResource(d3d.BackBuffer[d3d.FrameIndex], resources.DLSSOutput);
 		
-		// Describe the upload heap resource location for the copy
-		D3D12_SUBRESOURCE_FOOTPRINT subresource = {};
-		subresource.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		subresource.Width = d3d.DisplayWidth;
-		subresource.Height = d3d.DisplayHeight;
-		subresource.RowPitch = (d3d.DisplayWidth * 4);
-		subresource.Depth = 1;
+		if (scrshotRequested)
+		{
+			// Describe the upload heap resource location for the copy
+			D3D12_SUBRESOURCE_FOOTPRINT subresource = {};
+			subresource.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			subresource.Width = d3d.DisplayWidth;
+			subresource.Height = d3d.DisplayHeight;
+			subresource.RowPitch = (d3d.DisplayWidth * 4);
+			subresource.Depth = 1;
 
-		D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
-		footprint.Offset = 0;
-		footprint.Footprint = subresource;
+			D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+			footprint.Offset = 0;
+			footprint.Footprint = subresource;
 
-		D3D12_TEXTURE_COPY_LOCATION dest = {};
-		dest.pResource = resources.OutputReadBack;
-		dest.PlacedFootprint = footprint;
-		dest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+			D3D12_TEXTURE_COPY_LOCATION dest = {};
+			dest.pResource = resources.OutputReadBack;
+			dest.PlacedFootprint = footprint;
+			dest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
 
-		// Describe the default heap resource location for the copy
-		D3D12_TEXTURE_COPY_LOCATION source = {};
-		source.pResource = resources.DLSSOutput;
-		source.SubresourceIndex = 0;
-		source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+			// Describe the default heap resource location for the copy
+			D3D12_TEXTURE_COPY_LOCATION source = {};
+			source.pResource = resources.DLSSOutput;
+			source.SubresourceIndex = 0;
+			source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 
-		d3d.CmdList->CopyTextureRegion(&dest, 0, 0, 0, &source, nullptr);
+			d3d.CmdList->CopyTextureRegion(&dest, 0, 0, 0, &source, nullptr);
+		}
 
 		// Transition back buffer to present
 		OutputBarriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;

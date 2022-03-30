@@ -28,8 +28,12 @@
 #pragma once
 
 #include "Platform.h"
+#include <string>
 
 namespace AppWindow
 {
 	HRESULT Create(LONG width, LONG height, HINSTANCE& instance, HWND& window, LPCWSTR title);
+	VOID Startup(LPCTSTR lpApplicationName, LPWSTR cmdLine);
+	//std::string ExecCmd(const wchar_t* cmd);
+	//std::string exec(const char* cmd);
 }

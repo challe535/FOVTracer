@@ -17,6 +17,12 @@ namespace Math
 		return x < y ? y : x;
 	}
 
+	template<class T>
+	T min(T x, T y)
+	{
+		return x < y ? x : y;
+	}
+
 	float sign(float x);
 
 	float randRangeUniformF(float lower, float upper);
