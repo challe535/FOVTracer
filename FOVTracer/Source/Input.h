@@ -3,6 +3,8 @@
 #include "Math.h"
 #include "imgui/imgui.h"
 
+#include <map>;
+
 typedef UINT_PTR KeyCode;
 
 #define W_KEY 0x57
@@ -13,6 +15,7 @@ typedef UINT_PTR KeyCode;
 #define E_KEY 0x45
 #define Z_KEY 0x5A
 #define X_KEY 0x58
+#define P_KEY 0x50
 
 class Input
 {
@@ -29,6 +32,7 @@ public:
 	void SetCursorVisiblity(bool ShouldShow);
 
 	uint8_t IsKeyDown(KeyCode Code);
+	uint8_t IsKeyJustPressed(KeyCode Code);
 
 	Vector2f MouseDelta;
 	Vector2f MousePos;
@@ -36,6 +40,8 @@ public:
 private:
 	Vector2f PrimaryScreenSize;
 	bool CursorVisible = true;
+
+	std::map<int, bool> PrevKeyStates;
 
 	ImGuiIO* IO;
 };

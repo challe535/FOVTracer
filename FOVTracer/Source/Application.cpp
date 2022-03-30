@@ -70,7 +70,7 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 
 	RayTracer.Init(Config, Window, RayScene);
 
-	RayTracer.SetResolution("1920x1080", IsDLSSEnabled);
+	RayTracer.SetResolution("1920x1080", IsDLSSEnabled, 0, false);
 }
 
 void Application::Run()
@@ -83,7 +83,8 @@ void Application::Run()
 	float DeltaTime = 0.0f;
 	float FpsRunningAverage = 0.0f;
 
-	float ViewportRatio = 1.0f;
+	float ViewportRatio = 0.75f;
+	bool CustomRenderResolution = false;
 	bool LMouseClicked = false;
 
 	float jitterStrength = 0.85f;
@@ -165,7 +166,7 @@ void Application::Run()
 					if (ImGui::Selectable(items[n], is_selected))
 					{
 						current_item = items[n];
-						RayTracer.SetResolution(current_item, IsDLSSEnabled);
+						RayTracer.SetResolution(current_item, IsDLSSEnabled, ViewportRatio, CustomRenderResolution);
 						if (is_selected)
 						{
 							ImGui::SetItemDefaultFocus();   // You may set the initial focus when opening the combo (scrolling + for keyboard navigation support)
@@ -178,13 +179,16 @@ void Application::Run()
 			ImGui::Checkbox("Use foveated rendering", reinterpret_cast<bool*>(&TraceParams.isFoveatedRenderingEnabled));
 			ImGui::SliderFloat2("Foveal point", reinterpret_cast<float*>(&TraceParams.fovealCenter), 0.f, 1.f);
 			ImGui::SliderFloat("Kernel Alpha", &TraceParams.kernelAlpha, 0.5f, 6.0f);
-			ImGui::SliderFloat("foveationFillOffset", &TraceParams.foveationFillOffset, 0.0f, 10.0f);
-			ImGui::SliderFloat("Jitter Strength", &jitterStrength, 0.0f, 1.5f);
-			ImGui::Checkbox("DLSS", &IsDLSSEnabled);
 			ImGui::Checkbox("Vsync", &RayTracer.D3D.Vsync);
 			ImGui::Checkbox("Motion View", reinterpret_cast<bool*>(&ComputeParams.isMotionView));
 			ImGui::Checkbox("Depth View", reinterpret_cast<bool*>(&ComputeParams.isDepthView));
 			ImGui::Checkbox("WorldPos View", reinterpret_cast<bool*>(&ComputeParams.isWorldPosView));
+
+			ImGui::Separator();
+			ImGui::Checkbox("DLSS", &IsDLSSEnabled);
+			ImGui::Checkbox("Use custom downscale", &CustomRenderResolution);
+			ImGui::SliderFloat("Downscale amount", &ViewportRatio, 0.1f, 1.0f);
+			ImGui::SliderFloat("Jitter Strength", &jitterStrength, 0.0f, 1.5f);
 
 			ImGui::Separator();
 			ImGui::Text("Gaussian Blur");
@@ -196,6 +200,9 @@ void Application::Run()
 
 		ImGui::Render();
 		RayTracer.Render();
+
+		if (InputHandler->IsKeyJustPressed(P_KEY))
+			RayTracer.DumpFrameToFile(50);
 
 		auto const FrameEnd = std::chrono::high_resolution_clock::now();
 

@@ -44,4 +44,6 @@ namespace Utils
 	static SFallbackTexture* FallbackTexture = new SFallbackTexture();
 
 	SFallbackTexture* GetFallbackTexture();
+
+	bool DumpJPG(const char* name, int width, int height, int comp, const void* data, int quality);
 }

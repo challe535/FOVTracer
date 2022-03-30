@@ -4,6 +4,10 @@
 #include "Utils.h"
 #include "Application.h"
 
+#include <iomanip>
+#include <ctime>
+#include <sstream>
+
 
 #define APP_ID 231313132
 
@@ -12,6 +16,10 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 {
 	D3D.Height = config.Height;
 	D3D.Width = config.Width;
+
+	D3D.DisplayHeight = config.Height;
+	D3D.DisplayWidth = config.Width;
+
 	D3D.Vsync = config.Vsync;
 
 	TargetRes.Width = D3D.Width;
@@ -39,6 +47,8 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 	D3DResources::Create_UIHeap(D3D, Resources);
 
 	DXR::Create_DLSS_Output(D3D, Resources);
+	D3DResources::Create_ReadBackResources(D3D, Resources);
+
 	DXR::Create_Bottom_Level_AS(D3D, DXR, Resources, scene);
 	DXR::Create_Top_Level_AS(D3D, DXR, Resources);
 
@@ -197,7 +207,7 @@ bool Tracer::CheckDLSSIsSupported()
 	return false;
 }
 
-void Tracer::SetResolution(const char* ResolutionName, bool IsDLSSEnabled)
+void Tracer::SetResolution(const char* ResolutionName, bool IsDLSSEnabled, float viewportRatio, bool useViewportRatio)
 {
 	DLSSConfigInfo.ShouldUseDLSS = false;
 	
@@ -209,12 +219,25 @@ void Tracer::SetResolution(const char* ResolutionName, bool IsDLSSEnabled)
 	{
 		//RenderRes = OptimalRenderResolutions.at(NameStr);
 		NVSDK_NGX_PerfQuality_Value Quality = NVSDK_NGX_PerfQuality_Value_Balanced;
-		RenderRes = QueryOptimalResolution(TargetRes, Quality, DLSSConfigInfo.sharpness);
+
+		if (!useViewportRatio)
+		{
+			RenderRes = QueryOptimalResolution(TargetRes, Quality, DLSSConfigInfo.sharpness);
+		}
+		else 
+		{
+			RenderRes = TargetRes;
+			RenderRes.Width *= viewportRatio;
+			RenderRes.Height *= viewportRatio;
+
+			CORE_WARN("{0}, {1}", RenderRes.Width, RenderRes.Height);
+		}
+			
 		DLSSConfigInfo.ShouldUseDLSS = CreateDLSSFeature(Quality, RenderRes, TargetRes, true);
 
 		CORE_INFO("DLSS Sharpness set to {0}", DLSSConfigInfo.sharpness);
 	}
-		
+	
 	D3D.Width = RenderRes.Width;
 	D3D.Height = RenderRes.Height;
 
@@ -359,4 +382,40 @@ void Tracer::InitImGUI()
 		DXGI_FORMAT_R8G8B8A8_UNORM, Resources.uiHeap,
 		CPUHandle,
 		GPUHandle);
+}
+
+
+void Tracer::DumpFrameToFile(int quality)
+{
+	//D3D.CmdList->CopyResource(Resources.OutputReadBack, Resources.DLSSOutput);
+	//D3D.CmdList->Close();
+	//D3D12::Submit_CmdList(D3D);
+	//D3D12::WaitForGPU(D3D);
+	//D3D12::Reset_CommandList(D3D);
+	//D3D12::MoveToNextFrame(D3D);
+	
+	D3D12_RANGE ReadbackRange;
+	ReadbackRange.Begin = 0;
+	ReadbackRange.End = TargetRes.Width * TargetRes.Height;
+
+	auto t = std::time(nullptr);
+	auto tm = *std::localtime(&t);
+
+	std::ostringstream oss;
+	oss << std::put_time(&tm, "%d-%m-%Y_%Hh%Mm%Ss");
+	auto timeStr = oss.str();
+
+	UINT8* pData{};
+	Resources.OutputReadBack->Map(0, &ReadbackRange, reinterpret_cast<void**>(&pData));
+
+	std::string destPath("../ImageDumps/");
+	destPath = destPath.append("scrshot_").append(timeStr).append(".jpg");
+
+	if (Utils::DumpJPG(destPath.c_str(), TargetRes.Width, TargetRes.Height, 4, pData, quality))
+		CORE_INFO("Screenshot successfully saved to {0}", destPath);
+	else
+		CORE_ERROR("Failed to take screenshot!");
+
+	D3D12_RANGE EmptyRange{ 0, 0 };
+	Resources.OutputReadBack->Unmap(0, &EmptyRange);
 }

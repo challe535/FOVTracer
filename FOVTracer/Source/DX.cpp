@@ -1168,6 +1168,26 @@ namespace D3DResources
 		}
 	}
 
+	void Create_ReadBackResources(D3D12Global& d3d, D3D12Resources& resources)
+	{
+		D3D12_RESOURCE_DESC readbackBufferDesc{};
+		readbackBufferDesc.DepthOrArraySize = 1;
+		readbackBufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+		readbackBufferDesc.Format = DXGI_FORMAT_UNKNOWN;
+		readbackBufferDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		readbackBufferDesc.Width = d3d.Width * d3d.Height * 4;
+		readbackBufferDesc.Height = 1;
+		readbackBufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+		readbackBufferDesc.MipLevels = 1;
+		readbackBufferDesc.SampleDesc.Count = 1;
+		readbackBufferDesc.SampleDesc.Quality = 0;
+
+
+		HRESULT hr = d3d.Device->CreateCommittedResource(
+			&ReadBackProperties, D3D12_HEAP_FLAG_NONE, &readbackBufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resources.OutputReadBack));
+
+		Utils::Validate(hr, L"Failed to create output readback buffer");
+	}
 }
 
 namespace DXR
@@ -2159,6 +2179,31 @@ namespace DXR
 
 		// Copy the Final output to the back buffer
 		d3d.CmdList->CopyResource(d3d.BackBuffer[d3d.FrameIndex], resources.DLSSOutput);
+		
+		// Describe the upload heap resource location for the copy
+		D3D12_SUBRESOURCE_FOOTPRINT subresource = {};
+		subresource.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		subresource.Width = d3d.DisplayWidth;
+		subresource.Height = d3d.DisplayHeight;
+		subresource.RowPitch = (d3d.DisplayWidth * 4);
+		subresource.Depth = 1;
+
+		D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+		footprint.Offset = 0;
+		footprint.Footprint = subresource;
+
+		D3D12_TEXTURE_COPY_LOCATION dest = {};
+		dest.pResource = resources.OutputReadBack;
+		dest.PlacedFootprint = footprint;
+		dest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+
+		// Describe the default heap resource location for the copy
+		D3D12_TEXTURE_COPY_LOCATION source = {};
+		source.pResource = resources.DLSSOutput;
+		source.SubresourceIndex = 0;
+		source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+
+		d3d.CmdList->CopyTextureRegion(&dest, 0, 0, 0, &source, nullptr);
 
 		// Transition back buffer to present
 		OutputBarriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;

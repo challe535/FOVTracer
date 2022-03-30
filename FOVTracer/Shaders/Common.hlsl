@@ -52,7 +52,6 @@ struct TraceParamsCB
     bool isFoveatedRenderingEnabled;
     float kernelAlpha;
     float viewportRatio;
-    float foveationFillOffset;
     bool isDLSSEnabled;
 };
 

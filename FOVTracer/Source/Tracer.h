@@ -31,8 +31,9 @@ public:
 	void Update(Scene& scene, TracerParameters& params, ComputeParams& cParams, float jitterStrength);
 	void Render();
 	void Cleanup();
-	void SetResolution(const char* ResolutionName, bool IsDLSSEnabled);
+	void SetResolution(const char* ResolutionName, bool IsDLSSEnabled, float viewportRatio, bool useViewportRatio);
 	void AddTargetResolution(unsigned int Width, unsigned int Height, const std::string& Name);
+	void DumpFrameToFile(int quality);
 
 	D3D12Global D3D = {};
 	D3D12Resources Resources = {};

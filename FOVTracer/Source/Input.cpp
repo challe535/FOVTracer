@@ -36,6 +36,24 @@ uint8_t Input::IsKeyDown(KeyCode Code)
 	return GetAsyncKeyState(Code) & 0x8000 ? 1u : 0u;
 }
 
+uint8_t Input::IsKeyJustPressed(KeyCode Code)
+{
+	if (IO->WantCaptureKeyboard)
+		return 0u;
+
+	uint8_t CurrentState = GetAsyncKeyState(Code) & 0x8000 ? 1u : 0u;
+	uint8_t Result = 0u;
+
+	if (CurrentState)
+	{
+		auto FindPos = PrevKeyStates.find(Code);
+		Result = FindPos == PrevKeyStates.end() || (FindPos != PrevKeyStates.end() && !PrevKeyStates.at(Code));
+	}
+
+	PrevKeyStates.insert_or_assign(Code, CurrentState);
+	return Result;
+}
+
 void Input::SetCursorToCenter()
 {
 	Vector2f Center = PrimaryScreenSize * 0.5f;

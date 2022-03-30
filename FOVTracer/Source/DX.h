@@ -47,6 +47,14 @@ static const D3D12_HEAP_PROPERTIES DefaultHeapProperties =
 	0, 0
 };
 
+static const D3D12_HEAP_PROPERTIES ReadBackProperties =
+{
+	D3D12_HEAP_TYPE_READBACK,
+	D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+	D3D12_MEMORY_POOL_UNKNOWN,
+	0, 0
+};
+
 
 struct DLSSConfig
 {
@@ -66,7 +74,6 @@ struct TracerParameters
 	uint32_t isFoveatedRenderingEnabled = 0;
 	float kernelAlpha = 1.0f;
 	float viewportRatio = 1.0f;
-	float foveationFillOffset = 0.0f;
 	uint32_t isDLSSEnabled = 0;
 };
 
@@ -115,6 +122,10 @@ struct D3D12Global
 
 	int Width = 1280;
 	int	Height = 720;
+
+	int DisplayWidth = 1280;
+	int DisplayHeight = 720;
+
 	bool Vsync = false;
 };
 
@@ -125,9 +136,9 @@ struct ComputeParams
 	float kernelAlpha = 1.0f;
 	DirectX::XMFLOAT2 resoltion = DirectX::XMFLOAT2(1920, 1080);
 	DirectX::XMFLOAT2 jitterOffset = DirectX::XMFLOAT2(0, 0);
-	float blurKInner = 5.0f;
-	float blurKOuter = 5.0f;
-	float blurA = 0.6f;
+	float blurKInner = 30.0f;
+	float blurKOuter = 7.0f;
+	float blurA = 0.65f;
 
 	uint32_t isMotionView = 0;
 	uint32_t isDepthView = 0;
@@ -240,6 +251,8 @@ struct D3D12Resources
 	ID3D12Resource* DLSSDepthInput;
 	ID3D12Resource* DLSSOutput;
 
+	ID3D12Resource* OutputReadBack;
+
 	std::vector<SceneObjectResource> sceneObjResources;
 	std::unordered_map<std::string, TextureResource> Textures;
 
@@ -255,6 +268,7 @@ struct D3D12Resources
 	ID3D12DescriptorHeap* descriptorHeap = nullptr;
 	ID3D12DescriptorHeap* uiHeap = nullptr;
 	ID3D12DescriptorHeap* cpuOnlyHeap = nullptr;
+	//ID3D12DescriptorHeap* readbackHeap = nullptr;
 
 	UINT											rtvDescSize = 0;
 
@@ -433,6 +447,8 @@ namespace D3DResources
 	void Create_Params_CB(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Descriptor_Heaps(D3D12Global& d3d, D3D12Resources& resources); //Creates RTV heap
 	void Create_UIHeap(D3D12Global& d3d, D3D12Resources& resources);
+
+	void Create_ReadBackResources(D3D12Global& d3d, D3D12Resources& resources);
 
 	void Update_Params_CB(D3D12Resources& resources, TracerParameters& params);
 	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, Vector2f& jitterOffset, Vector2f& displayResolution);
