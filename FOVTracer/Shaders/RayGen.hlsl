@@ -26,13 +26,12 @@ float3 GetRayDir(float2 index, float2 dimensions, float aspectRatio, float2 fove
     if (params.isFoveatedRenderingEnabled)
     {
         float2 logPolar2Screen = LogPolar2Screen(index, dimensions, fovealPoint, B, L);
-        //exp(L * kernelFunc(index.x / dimensions.x, params.kernelAlpha)) * float2(cos(B * index.y), sin(B * index.y)) + fovealPoint;
             
         d = ((float2(logPolar2Screen.x, logPolar2Screen.y) / dimensions.xy) * 2.f - 1.f);
     }
-    float3 vToNear = (d.x * view[0].xyz * viewOriginAndTanHalfFovY.w * aspectRatio) - (d.y * view[1].xyz * viewOriginAndTanHalfFovY.w) + view[2].xyz;
+    float3 dir = (d.x * view[0].xyz * viewOriginAndTanHalfFovY.w * aspectRatio) - (d.y * view[1].xyz * viewOriginAndTanHalfFovY.w) + view[2].xyz;
 
-    return normalize(vToNear);
+    return normalize(dir);
 
 }
 
@@ -66,9 +65,9 @@ void RayGen()
     float offsetX = stepSize;
     float offsetY = stepSize;
 
-    float jitterAttenuation = 1 - kernelFunc(LaunchIndex.x / LaunchDimensions.x, params.kernelAlpha);
-    float2 jitter = jitterOffset * (params.isFoveatedRenderingEnabled ? jitterAttenuation : 1);
-    //float2 jitter = jitterOffset;
+    //float jitterAttenuation = 1 - kernelFunc(LaunchIndex.x / LaunchDimensions.x, params.kernelAlpha);
+    //float2 jitter = jitterOffset * (params.isFoveatedRenderingEnabled ? jitterAttenuation : 1);
+    float2 jitter = jitterOffset * (params.isFoveatedRenderingEnabled ? 0 : 1);
 
     for (int i = 0; i < params.sqrtSamplesPerPixel; i++)
     {

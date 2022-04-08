@@ -3,5 +3,5 @@
 [shader("closesthit")]
 void ShadowHit(inout ShadowHitInfo hit, Attributes bary)
 {
-	hit.isHit = true;
+    hit.isHit = true;
 }

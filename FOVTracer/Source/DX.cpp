@@ -379,7 +379,7 @@ namespace D3D12
 	 */
 	void Present(D3D12Global& d3d)
 	{
-		HRESULT hr = d3d.SwapChain->Present(d3d.Vsync, !d3d.Vsync ? DXGI_PRESENT_ALLOW_TEARING : 0);
+		HRESULT hr = d3d.SwapChain->Present(d3d.Vsync ? 1 : 0, !d3d.Vsync ? DXGI_PRESENT_ALLOW_TEARING : 0);
 		if (FAILED(hr))
 		{
 			hr = d3d.Device->GetDeviceRemovedReason();
@@ -472,6 +472,15 @@ namespace D3D12
 		computePsoDesc.CS = byteCode;
 
 		d3d.Device->CreateComputePipelineState(&computePsoDesc, IID_PPV_ARGS(&dxComp.cps));
+
+		//Watermark program
+		computePsoDesc = {};
+		computePsoDesc.pRootSignature = dxComp.watermarkProgram.pRootSignature;
+		byteCode.pShaderBytecode = dxComp.watermarkProgram.csProgram->GetBufferPointer();
+		byteCode.BytecodeLength = dxComp.watermarkProgram.csProgram->GetBufferSize();
+		computePsoDesc.CS = byteCode;
+
+		d3d.Device->CreateComputePipelineState(&computePsoDesc, IID_PPV_ARGS(&dxComp.wmPs));
 	}
 
 	void Create_Compute_Program(D3D12Global& d3d, D3D12Compute& dxComp)
@@ -505,6 +514,30 @@ namespace D3D12
 		rootDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 
 		dxComp.pRootSignature = D3D12::Create_Root_Signature(d3d, rootDesc);
+
+		//watermark program
+		hr = D3DShaders::CompileComputeShader(L"Shaders\\WatermarkCS.hlsl", "CSMain", d3d.Device, &dxComp.watermarkProgram.csProgram);
+		Utils::Validate(hr, L"Failed to compile watermark compute shader");
+
+		D3D12_DESCRIPTOR_RANGE range = {};
+		range.BaseShaderRegister = 0;
+		range.NumDescriptors = 1;
+		range.RegisterSpace = 0;
+		range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		range.OffsetInDescriptorsFromTableStart = 0;
+
+		D3D12_ROOT_PARAMETER descParam = {};
+		descParam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		descParam.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		descParam.DescriptorTable.NumDescriptorRanges = 1;
+		descParam.DescriptorTable.pDescriptorRanges = &range;
+
+		rootDesc = {};
+		rootDesc.NumParameters = 1;
+		rootDesc.pParameters = &descParam;
+		rootDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+
+		dxComp.watermarkProgram.pRootSignature = D3D12::Create_Root_Signature(d3d, rootDesc);
 	}
 
 	void Create_Compute_Heap(D3D12Global& d3d, D3D12Resources& resources, D3D12Compute& dxComp)
@@ -556,6 +589,23 @@ namespace D3D12
 		// Create the Depth output buffer UAV
 		d3d.Device->CreateUnorderedAccessView(resources.DLSSDepthInput, nullptr, &uavDesc, handle);
 		handle.ptr += handleIncrement;
+
+		//Watermark heap
+		desc = {};
+		desc.NumDescriptors = 1;
+		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+		// Create the descriptor heap
+		hr = d3d.Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&dxComp.wmHeap));
+		Utils::Validate(hr, L"Error: failed to create DXR CBV/SRV/UAV descriptor heap!");
+
+		handle = dxComp.wmHeap->GetCPUDescriptorHandleForHeapStart();
+		handleIncrement = d3d.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		uavDesc = {};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		d3d.Device->CreateUnorderedAccessView(resources.DLSSOutput, nullptr, &uavDesc, handle);
 	}
 
 	void Create_Compute_Output(D3D12Global& d3d, D3D12Resources& resources)
@@ -1036,6 +1086,7 @@ namespace D3DResources
 	{
 		resources.sceneObjResources[index].materialCBData.resolution = DirectX::XMFLOAT4(material.TextureResolution.X, material.TextureResolution.Y, 0.f, 0.f);
 		resources.sceneObjResources[index].materialCBData.hasDiffuse = !material.TexturePath.empty() ? 1u : 0u;
+		//resources.sceneObjResources[index].materialCBData.hasDiffuse = 0u;
 		resources.sceneObjResources[index].materialCBData.hasNormal = !material.NormalMapPath.empty() ? 1u : 0u;
 		resources.sceneObjResources[index].materialCBData.hasTransparency = !material.OpacityMapPath.empty() ? 1u : 0u;
 
@@ -1465,6 +1516,13 @@ namespace DXR
 		D3DShaders::Compile_Shader(shaderCompiler, dxr.hit.ahs);
 	}
 
+	void Add_Shadow_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler)
+	{
+		// Load and compile the Closest Hit shader
+		dxr.shadow_hit.ahs = RtProgram(D3D12ShaderInfo(L"Shaders\\ShadowAnyHit.hlsl", L"ShadowAnyHit", L"lib_6_3"));
+		D3DShaders::Compile_Shader(shaderCompiler, dxr.shadow_hit.ahs);
+	}
+
 	/**
 	* Load and create the DXR Shadow Hit program and root signature.
 	*/
@@ -1483,7 +1541,7 @@ namespace DXR
 	{
 		UINT index = 0;
 		std::vector<D3D12_STATE_SUBOBJECT> subobjects;
-		subobjects.resize(14);
+		subobjects.resize(15);
 
 		// Add state subobject for the Shadow Miss shader
 		D3D12_EXPORT_DESC smsExportDesc = {};
@@ -1521,9 +1579,28 @@ namespace DXR
 
 		subobjects[index++] = shs;
 
+		// Add state subobject for the Shadow Any Hit shader
+		D3D12_EXPORT_DESC sahsExportDesc = {};
+		sahsExportDesc.Name = L"ShadowAny";
+		sahsExportDesc.ExportToRename = L"ShadowAnyHit";
+		sahsExportDesc.Flags = D3D12_EXPORT_FLAG_NONE;
+
+		D3D12_DXIL_LIBRARY_DESC	sahsLibDesc = {};
+		sahsLibDesc.DXILLibrary.BytecodeLength = dxr.shadow_hit.ahs.blob->GetBufferSize();
+		sahsLibDesc.DXILLibrary.pShaderBytecode = dxr.shadow_hit.ahs.blob->GetBufferPointer();
+		sahsLibDesc.NumExports = 1;
+		sahsLibDesc.pExports = &sahsExportDesc;
+
+		D3D12_STATE_SUBOBJECT sahs = {};
+		sahs.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
+		sahs.pDesc = &sahsLibDesc;
+
+		subobjects[index++] = sahs;
+
 		// Add a state subobject for the hit group
 		D3D12_HIT_GROUP_DESC shadowHitGroupDesc = {};
 		shadowHitGroupDesc.ClosestHitShaderImport = L"ShadowHit_76";
+		shadowHitGroupDesc.AnyHitShaderImport = L"ShadowAny";
 		shadowHitGroupDesc.HitGroupExport = L"ShadowHitGroup";
 
 		D3D12_STATE_SUBOBJECT shadowHitGroup = {};
@@ -1672,7 +1749,7 @@ namespace DXR
 
 		// Add a state subobject for the ray tracing pipeline config
 		D3D12_RAYTRACING_PIPELINE_CONFIG pipelineConfig = {};
-		pipelineConfig.MaxTraceRecursionDepth = 2;
+		pipelineConfig.MaxTraceRecursionDepth = 3;
 
 		D3D12_STATE_SUBOBJECT pipelineConfigObject = {};
 		pipelineConfigObject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;
@@ -1765,6 +1842,7 @@ namespace DXR
 		pData += dxr.shaderTableRecordSize;
 		memcpy(pData, dxr.rtpsoInfo->GetShaderIdentifier(L"ShadowHitGroup"), shaderIdSize);
 
+
 		//// Set the root parameter data. Point to start of descriptor heap.
 		//*reinterpret_cast<D3D12_GPU_DESCRIPTOR_HANDLE*>(pData + shaderIdSize) = resources.sceneObjResources[0].descriptorHeap->GetGPUDescriptorHandleForHeapStart();
 
@@ -1772,6 +1850,8 @@ namespace DXR
 		D3D12_GPU_DESCRIPTOR_HANDLE handle = resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();
 		for (int i = 0; i < resources.sceneObjResources.size(); i++)
 		{
+
+
 			// Shader HitGroup Record 1 - Closest Hit program and local root parameter data (descriptor table with constant buffer and IB/VB pointers)
 			pData += dxr.shaderTableRecordSize;
 			memcpy(pData, dxr.rtpsoInfo->GetShaderIdentifier(L"HitGroup"), shaderIdSize);
@@ -2018,11 +2098,10 @@ namespace DXR
 	/**
 	* Builds the frame's DXR command list.
 	*/
-	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested)
+	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested, bool dlssPreScrshot)
 	{
 		D3D12_RESOURCE_BARRIER OutputBarriers[2] = {};
 		D3D12_RESOURCE_BARRIER CounterBarriers[2] = {};
-		D3D12_RESOURCE_BARRIER UAVBarriers[3] = {};
 
 		// Transition the back buffer to a copy destination
 		OutputBarriers[0].Transition.pResource = d3d.BackBuffer[d3d.FrameIndex];
@@ -2035,6 +2114,17 @@ namespace DXR
 		OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
 		OutputBarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		OutputBarriers[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+		D3D12_RESOURCE_BARRIER uavBarriers[4] = {};
+		uavBarriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+		uavBarriers[1].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+		uavBarriers[2].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+		uavBarriers[3].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+
+		uavBarriers[0].UAV.pResource = resources.DXROutput;
+		uavBarriers[1].UAV.pResource = resources.MotionOutput;
+		uavBarriers[2].UAV.pResource = resources.WorldPosBuffer;
+		uavBarriers[3].UAV.pResource = resources.DLSSOutput;
 
 		// Wait for the transitions to complete
 		d3d.CmdList->ResourceBarrier(2, OutputBarriers);
@@ -2071,6 +2161,7 @@ namespace DXR
 		d3d.CmdList->SetPipelineState1(dxr.rtpso);
 		d3d.CmdList->DispatchRays(&desc);
 
+		d3d.CmdList->ResourceBarrier(_countof(uavBarriers), uavBarriers);
 
 		//Compute
 		d3d.CmdList->SetDescriptorHeaps(1, &dxComp.descriptorHeap);
@@ -2122,7 +2213,7 @@ namespace DXR
 			DLSSParams.Feature.pInOutput = resources.DLSSOutput;
 			DLSSParams.pInMotionVectors = resources.FinalMotionOutput;
 			DLSSParams.pInDepth = resources.DLSSDepthInput;
-			DLSSParams.InJitterOffsetX = dlssConfig.JitterOffset.X;
+			DLSSParams.InJitterOffsetX = -dlssConfig.JitterOffset.X;
 			DLSSParams.InJitterOffsetY = -dlssConfig.JitterOffset.Y;
 			DLSSParams.Feature.InSharpness = dlssConfig.sharpness;
 			DLSSParams.InReset = false;
@@ -2175,6 +2266,23 @@ namespace DXR
 			d3d.CmdList->ResourceBarrier(1, &OutputBarriers[1]);
 			d3d.CmdList->ResourceBarrier(1, &Barrier);
 		}
+
+		//Black out DLSS watermark if taking screenshot
+		if (scrshotRequested && dlssPreScrshot)
+		{
+			d3d.CmdList->SetDescriptorHeaps(1, &dxComp.wmHeap);
+			d3d.CmdList->SetPipelineState(dxComp.wmPs);
+			d3d.CmdList->SetComputeRootSignature(dxComp.watermarkProgram.pRootSignature);
+
+			d3d.CmdList->SetComputeRootDescriptorTable(0, dxComp.wmHeap->GetGPUDescriptorHandleForHeapStart());
+
+			d3d.CmdList->Dispatch(
+				static_cast<UINT>(ceil(d3d.DisplayWidth / 32.0f)),
+				static_cast<UINT>(ceil(d3d.DisplayHeight / 32.0f)),
+				1u);
+		}
+
+		//d3d.CmdList->ResourceBarrier(_countof(uavBarriers), uavBarriers);
 
 		// Transition Final output to a copy source
 		OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;

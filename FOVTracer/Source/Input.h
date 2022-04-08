@@ -20,10 +20,11 @@ typedef UINT_PTR KeyCode;
 class Input
 {
 public:
-	Input(ImGuiIO& io) :
+	Input(ImGuiIO& io, HWND window) :
 		PrimaryScreenSize(Vector2f(static_cast<float>(GetSystemMetrics(SM_CXSCREEN)), static_cast<float>(GetSystemMetrics(SM_CYSCREEN))))
 	{
 		IO = &io;
+		Window = window;
 	};
 
 	void OnFrameEnd();
@@ -38,10 +39,13 @@ public:
 	Vector2f MousePos;
 	bool LockMouseToCenter = false;
 private:
+	bool ShouldCaptureInput();
+
 	Vector2f PrimaryScreenSize;
 	bool CursorVisible = true;
 
 	std::map<int, bool> PrevKeyStates;
 
+	HWND Window;
 	ImGuiIO* IO;
 };

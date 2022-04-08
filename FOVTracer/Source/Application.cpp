@@ -31,7 +31,6 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 	GetClipCursor(&OldClip);
 	GetWindowRect(Window, &Clip);
 
-
 	AllocConsole();
 
 	Log::Init();
@@ -62,7 +61,7 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 
 	ImGui_ImplWin32_Init(Window);
 
-	InputHandler = new Input(ImGui::GetIO());
+	InputHandler = new Input(ImGui::GetIO(), Window);
 
 	RayTracer.AddTargetResolution(1920, 1080, "1920x1080");
 	RayTracer.AddTargetResolution(1280, 720, "1280x720");
@@ -86,7 +85,7 @@ void Application::Run()
 	bool CustomRenderResolution = false;
 	bool LMouseClicked = false;
 
-	float jitterStrength = 0.85f;
+	float jitterStrength = 1.0f;
 
 	while (WM_QUIT != msg.message)
 	{

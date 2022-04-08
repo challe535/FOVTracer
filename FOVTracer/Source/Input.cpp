@@ -9,7 +9,7 @@ void Input::OnFrameEnd()
 
 void Input::UpdateMouseInfo()
 {
-	if (IO->WantCaptureMouse)
+	if (IO->WantCaptureMouse || !ShouldCaptureInput())
 		return;
 
 	POINT CursorPos;
@@ -30,7 +30,7 @@ void Input::UpdateMouseInfo()
 
 uint8_t Input::IsKeyDown(KeyCode Code)
 {
-	if (IO->WantCaptureKeyboard)
+	if (IO->WantCaptureKeyboard || !ShouldCaptureInput())
 		return 0u;
 
 	return GetAsyncKeyState(Code) & 0x8000 ? 1u : 0u;
@@ -38,7 +38,7 @@ uint8_t Input::IsKeyDown(KeyCode Code)
 
 uint8_t Input::IsKeyJustPressed(KeyCode Code)
 {
-	if (IO->WantCaptureKeyboard)
+	if (IO->WantCaptureKeyboard || !ShouldCaptureInput())
 		return 0u;
 
 	uint8_t CurrentState = GetAsyncKeyState(Code) & 0x8000 ? 1u : 0u;
@@ -62,11 +62,18 @@ void Input::SetCursorToCenter()
 
 void Input::SetCursorVisiblity(bool ShouldShow)
 {
-	if (IO->WantCaptureMouse)
+	if (IO->WantCaptureMouse || !ShouldCaptureInput())
 		return;
 
 	if(ShouldShow && !CursorVisible)
 		ShowCursor(CursorVisible = true);
 	else if (!ShouldShow && CursorVisible)
 		ShowCursor(CursorVisible = false);
+}
+
+bool Input::ShouldCaptureInput()
+{
+	HWND ActiveWindow = GetActiveWindow();
+	
+	return ActiveWindow != NULL && ActiveWindow == Window;
 }

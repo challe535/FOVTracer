@@ -17,7 +17,6 @@ cbuffer ParamsCB : register(b0)
     bool isMotionView;
     bool isDepthView;
     bool isWorldPosView;
-
 }
 
 RWTexture2D<float4> InColorBuffer : register(u0);
@@ -50,6 +49,7 @@ float4 sampleTexture(RWTexture2D<float4> buffer, float2 index, int kernelSize)
         }
 
         result /= kernelSum;
+        //result /= kernelSize * kernelSize;
     }
     else
     {
@@ -76,6 +76,8 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
 
     if (isFoveatedRenderingEnabled)
     {
+        LaunchIndex += jitterOffset;
+        
         float2 fovealPoint = fovealCenter * resolution;
 
         float2 l1 = resolution - fovealPoint;
@@ -94,10 +96,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
 
         sampleIndex = float2(u, v);
 
-        //float jitterAttenuation = 1 - pow(smoothstep(0, 1, kernelFunc(u, kernelAlpha)), 0.5);
-        //sampleIndex += jitterOffset * jitterAttenuation;
-
-        float c = 1.5;
+        float c = 1.8;
         float t = ceil(blurA - uNorm);
         float kInner = blurKInner;
         float kOuter = blurKOuter;
@@ -127,17 +126,17 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
         finalColor.rgb *= 0.5f;
     }
 
-    //Ring around foveal area
-    if (isFoveatedRenderingEnabled)
-    {
-        float normFovealDist = length(relativePoint) / maxCornerDist;
-        float upper = kernelFunc(0.1, kernelAlpha);
-        float lower = kernelFunc(0.099, kernelAlpha);
-        if (normFovealDist < upper && normFovealDist > lower)
-        {
-            finalColor = float3(1, 0, 1) * 0.5 + finalColor * 0.5;
-        }
-    }
+    ////Ring around foveal area
+    //if (isFoveatedRenderingEnabled)
+    //{
+    //    float normFovealDist = length(relativePoint) / maxCornerDist;
+    //    float upper = kernelFunc(0.1, kernelAlpha);
+    //    float lower = kernelFunc(0.099, kernelAlpha);
+    //    if (normFovealDist < upper && normFovealDist > lower)
+    //    {
+    //        finalColor = float3(1, 0, 1) * 0.5 + finalColor * 0.5;
+    //    }
+    //}
 
     OutMotionBuffer[DTid.xy] = motion;
     DepthOutBuffer[DTid.xy] = depth;

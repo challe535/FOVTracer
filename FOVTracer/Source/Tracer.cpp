@@ -100,7 +100,7 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 
 void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp)
 {
-	DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, scrshotRequested);
+	DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, scrshotRequested, DLSSConfigInfo.ShouldUseDLSS);
 	D3D12::Present(D3D);
 	D3D12::MoveToNextFrame(D3D);
 	D3D12::Reset_CommandList(D3D);
@@ -113,13 +113,54 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp)
 
 		D3DResources::Update_SPP(Resources, groundTruthSqrtSpp);
 
-		//Additionally turn off DLSS and disable foveated rendering
+		bool PrevDLSS = DLSSConfigInfo.ShouldUseDLSS;
+		int PrevWidth = D3D.Width;
+		int PrevHeight = D3D.Height;
+		if (DLSSConfigInfo.ShouldUseDLSS)
+		{
+			//Turn off DLSS temporarily
+			DLSSConfigInfo.ShouldUseDLSS = false;
 
-		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, scrshotRequested);
+			D3D.Width = TargetRes.Width;
+			D3D.Height = TargetRes.Height;
+
+			InitRenderPipeline(*SceneToTrace);
+		}
+
+		bool PrevFOVRendering = Resources.paramCBData.isFoveatedRenderingEnabled;
+		if (Resources.paramCBData.isFoveatedRenderingEnabled)
+		{
+			//Turn off foveated rendering temporarily
+			Resources.paramCBData.isFoveatedRenderingEnabled = false;
+			DXCompute.paramCBData.isFoveatedRenderingEnabled = false;
+			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+		}
+
+		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, scrshotRequested, PrevDLSS);
 		D3D12::MoveToNextFrame(D3D);
 		D3D12::Reset_CommandList(D3D);
+		D3D12::WaitForGPU(D3D);
 
 		D3DResources::Update_SPP(Resources, currentSpp);
+
+		if (PrevDLSS)
+		{
+			DLSSConfigInfo.ShouldUseDLSS = true;
+
+			D3D.Width = PrevWidth;
+			D3D.Height = PrevHeight;
+
+			InitRenderPipeline(*SceneToTrace);
+		}
+
+		if (PrevFOVRendering)
+		{
+			Resources.paramCBData.isFoveatedRenderingEnabled = true;
+			DXCompute.paramCBData.isFoveatedRenderingEnabled = false;
+			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+		}
 
 		auto ref = DumpFrameToFile("scrshot_gt");
 
@@ -244,8 +285,8 @@ void Tracer::SetResolution(const char* ResolutionName, bool IsDLSSEnabled, float
 	Resolution RenderRes = TargetRes;
 	if (IsDLSSEnabled)
 	{
-		//RenderRes = OptimalRenderResolutions.at(NameStr);
-		NVSDK_NGX_PerfQuality_Value Quality = NVSDK_NGX_PerfQuality_Value_Balanced;
+		//NVSDK_NGX_PerfQuality_Value Quality = NVSDK_NGX_PerfQuality_Value_Balanced;
+		NVSDK_NGX_PerfQuality_Value Quality = NVSDK_NGX_PerfQuality_Value_MaxQuality;
 
 		if (!useViewportRatio)
 		{
@@ -354,6 +395,7 @@ void Tracer::InitRenderPipeline(Scene& scene)
 	DXR::Create_Shadow_Hit_Program(D3D, DXR, ShaderCompiler);
 	DXR::Create_Shadow_Miss_Program(D3D, DXR, ShaderCompiler);
 	DXR::Add_Alpha_AnyHit_Program(D3D, DXR, ShaderCompiler);
+	DXR::Add_Shadow_AnyHit_Program(D3D, DXR, ShaderCompiler);
 	DXR::Create_Pipeline_State_Object(D3D, DXR);
 	DXR::Create_Shader_Table(D3D, DXR, Resources);
 

@@ -16,15 +16,15 @@ bool IsShadowed(float3 lightDir, float3 origin, float maxDist, float3 normal)
     RayDesc ray;
     ray.Origin = origin;
     ray.Direction = lightDir;
-    ray.TMin = 0.01;
+    ray.TMin = 0.1;
     ray.TMax = maxDist;
 
     ShadowHitInfo shadowPayload;
-    shadowPayload.isHit = true;
+    shadowPayload.isHit = false;
 
     TraceRay(
 		SceneBVH,
-		RAY_FLAG_NONE,
+		RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
 		0xFF,
 		0,
 		0,
@@ -32,7 +32,7 @@ bool IsShadowed(float3 lightDir, float3 origin, float maxDist, float3 normal)
 		ray,
 		shadowPayload
 	);
-
+    
     return shadowPayload.isHit;
 }
 
@@ -60,7 +60,7 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     float a = 2 * (sqrt(-(dot(normalize(WorldRayDirection()), v1) - 1) * 2));
 
     float coneFactor = a * (RayTCurrent() + 100) / abs(dot(normalize(vertex.triCross), WorldRayDirection()));
-    float lodBias = 0;
+    float lodBias = 0.35;
 
     if (params.isFoveatedRenderingEnabled)
         lodBias += 3 * pow(smoothstep(0, 1, kernelFunc(indexNorm.x, params.kernelAlpha)), 3);
@@ -73,7 +73,6 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     float4 diffuse = float4(1, 1, 0, 1);
     if (material.hasDiffuseTexture)
     {
-        //diffuse = albedo.Load(int3(coord, 0));
         diffuse = albedo.SampleLevel(BilinearClamp, vertex.uv, lod);
     }
 

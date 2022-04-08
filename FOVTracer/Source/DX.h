@@ -160,15 +160,19 @@ struct D3D12Compute
 	ComputeProgram mipProgram;
 	D3D12_STATIC_SAMPLER_DESC mipSampler = {};
 
+	ComputeProgram watermarkProgram;
+
 	ID3D12Resource* paramCB = nullptr;
 	ComputeParams paramCBData;
 	UINT8* paramCBStart = nullptr;
 
 	ID3D12DescriptorHeap* descriptorHeap = nullptr;
 	ID3D12DescriptorHeap* mipHeap = nullptr;
+	ID3D12DescriptorHeap* wmHeap = nullptr;
 
 	ID3D12PipelineState* cps = nullptr;
 	ID3D12PipelineState* mipPs = nullptr;
+	ID3D12PipelineState* wmPs = nullptr;
 };
 
 struct D3D12ShaderCompilerInfo
@@ -478,8 +482,9 @@ namespace DXR
 	void Create_Shadow_Hit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Create_Shadow_Miss_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Add_Alpha_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
+	void Add_Shadow_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 
-	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested);
+	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested, bool dlssPreScrshot);
 
 	void Destroy(DXRGlobal& dxr);
 }
