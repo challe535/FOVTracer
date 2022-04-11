@@ -87,6 +87,10 @@ void Application::Run()
 
 	float jitterStrength = 1.0f;
 
+	bool scrShotDisableDLSS = false;
+	bool scrShotDisableFOV = false;
+	uint32_t scrShotSqrtSamples = 6;
+
 	while (WM_QUIT != msg.message)
 	{
 		auto const FrameStart = std::chrono::high_resolution_clock::now();
@@ -152,6 +156,8 @@ void Application::Run()
 		if (opened)
 		{
 			ImGui::Text("Frame rate: %.3f fps", FpsRunningAverage);
+			ImGui::Text("Raytracing time: %.3f ms", RaytraceTimeMS);
+			ImGui::Text("DLSS time: %.3f ms", DLSSTimeMS);
 			ImGui::SliderInt("Sqrt spp", reinterpret_cast<int*>(&TraceParams.sqrtSamplesPerPixel), 0, 10);
 			const char* items[] = { "1920x1080", "1280x720" };
 			static const char* current_item = "1920x1080";
@@ -193,11 +199,17 @@ void Application::Run()
 			ImGui::SliderFloat("Blur Inner K", &ComputeParams.blurKInner, 0.0f, 40.0f);
 			ImGui::SliderFloat("Blur Outer K", &ComputeParams.blurKOuter, 0.0f, 20.0f);
 			ImGui::SliderFloat("Blur A", &ComputeParams.blurA, 0.0f, 1.0f);
+
+			ImGui::Separator();
+			ImGui::Text("Screenshot reference parameters");
+			ImGui::SliderInt("Screenshot sqrt spp", reinterpret_cast<int*>(&scrShotSqrtSamples), 1, 15);
+			ImGui::Checkbox("Disable DLSS", &scrShotDisableDLSS);
+			ImGui::Checkbox("Disable Foveation", &scrShotDisableFOV);
 		}
 		ImGui::End();
 
 		ImGui::Render();
-		RayTracer.Render(InputHandler->IsKeyJustPressed(P_KEY), 3);
+		RayTracer.Render(InputHandler->IsKeyJustPressed(P_KEY), scrShotSqrtSamples, scrShotDisableFOV, scrShotDisableDLSS);
 
 		auto const FrameEnd = std::chrono::high_resolution_clock::now();
 

@@ -256,6 +256,7 @@ struct D3D12Resources
 	ID3D12Resource* DLSSOutput;
 
 	ID3D12Resource* OutputReadBack;
+	ID3D12Resource* TimestampReadBack;
 
 	std::vector<SceneObjectResource> sceneObjResources;
 	std::unordered_map<std::string, TextureResource> Textures;
@@ -272,7 +273,7 @@ struct D3D12Resources
 	ID3D12DescriptorHeap* descriptorHeap = nullptr;
 	ID3D12DescriptorHeap* uiHeap = nullptr;
 	ID3D12DescriptorHeap* cpuOnlyHeap = nullptr;
-	//ID3D12DescriptorHeap* readbackHeap = nullptr;
+	ID3D12QueryHeap* queryHeap = nullptr;
 
 	UINT											rtvDescSize = 0;
 
@@ -447,6 +448,7 @@ namespace D3DResources
 	void Create_Constant_Buffer(D3D12Global& d3d, ID3D12Resource** buffer, UINT64 size);
 	void Create_BackBuffer_RTV(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_View_CB(D3D12Global& d3d, D3D12Resources& resources);
+	void Create_Query_Heap(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Material_CB(D3D12Global& d3d, D3D12Resources& resources, const Material& material, uint32_t index);
 	void Create_Params_CB(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Descriptor_Heaps(D3D12Global& d3d, D3D12Resources& resources); //Creates RTV heap
@@ -457,6 +459,7 @@ namespace D3DResources
 	void Update_Params_CB(D3D12Resources& resources, TracerParameters& params);
 	void Update_SPP(D3D12Resources& resources, uint32_t newSpp);
 	void Update_View_CB(D3D12Global& d3d, D3D12Resources& resources, Camera& camera, Vector2f& jitterOffset, Vector2f& displayResolution);
+	void Update_View_CB(D3D12Resources& resources, ViewCB& vcb);
 
 	void Upload_Texture(D3D12Global& d3d, ID3D12Resource* destResource, ID3D12Resource* srcResource, const TextureInfo& texture);
 	void Generate_Mips(TextureResource& textureResource, D3D12Global& d3d, D3D12Compute& dxComp);

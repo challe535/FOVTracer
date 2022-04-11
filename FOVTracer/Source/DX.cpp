@@ -1103,6 +1103,16 @@ namespace D3DResources
 		//resources.sceneObjResources[index].materialCB->Unmap(0, nullptr);
 	}
 
+	void Create_Query_Heap(D3D12Global& d3d, D3D12Resources& resources)
+	{
+		D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
+		queryHeapDesc.Count = 10;
+		queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+
+		HRESULT hr = d3d.Device->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&resources.queryHeap));
+		Utils::Validate(hr, L"Failed to create timestamp query heap!");
+;	}
+
 	/**
 	* Create and initialize the trace parmeters constant buffer.
 	*/
@@ -1181,6 +1191,12 @@ namespace D3DResources
 		memcpy(resources.viewCBStart, &resources.viewCBData, sizeof(resources.viewCBData));
 	}
 
+	void Update_View_CB(D3D12Resources& resources, ViewCB& vcb)
+	{
+		resources.viewCBData = vcb;
+		memcpy(resources.viewCBStart, &resources.viewCBData, sizeof(resources.viewCBData));
+	}
+
 	/**
 	* Update the view constant buffer.
 	*/
@@ -1242,8 +1258,13 @@ namespace D3DResources
 
 		HRESULT hr = d3d.Device->CreateCommittedResource(
 			&ReadBackProperties, D3D12_HEAP_FLAG_NONE, &readbackBufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resources.OutputReadBack));
-
 		Utils::Validate(hr, L"Failed to create output readback buffer");
+
+		readbackBufferDesc.Width = 10 * 8;
+
+		hr = d3d.Device->CreateCommittedResource(
+			&ReadBackProperties, D3D12_HEAP_FLAG_NONE, &readbackBufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resources.TimestampReadBack));
+		Utils::Validate(hr, L"Failed to create timestamp readback buffer");
 	}
 }
 
@@ -2126,6 +2147,16 @@ namespace DXR
 		uavBarriers[2].UAV.pResource = resources.WorldPosBuffer;
 		uavBarriers[3].UAV.pResource = resources.DLSSOutput;
 
+		D3D12_RESOURCE_BARRIER dlssUAVBarriers[3] = {};
+		dlssUAVBarriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+		dlssUAVBarriers[1].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+		dlssUAVBarriers[2].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+
+		dlssUAVBarriers[0].UAV.pResource = resources.Log2CartOutput;
+		dlssUAVBarriers[1].UAV.pResource = resources.DLSSDepthInput;
+		dlssUAVBarriers[2].UAV.pResource = resources.FinalMotionOutput;
+
+
 		// Wait for the transitions to complete
 		d3d.CmdList->ResourceBarrier(2, OutputBarriers);
 
@@ -2159,9 +2190,15 @@ namespace DXR
 		desc.Depth = 1;
 
 		d3d.CmdList->SetPipelineState1(dxr.rtpso);
-		d3d.CmdList->DispatchRays(&desc);
 
+		//Start raytracing time
+		d3d.CmdList->EndQuery(resources.queryHeap, D3D12_QUERY_TYPE_TIMESTAMP, 0);
+
+		d3d.CmdList->DispatchRays(&desc);
 		d3d.CmdList->ResourceBarrier(_countof(uavBarriers), uavBarriers);
+		
+		//End raytracing time
+		d3d.CmdList->EndQuery(resources.queryHeap, D3D12_QUERY_TYPE_TIMESTAMP, 1);
 
 		//Compute
 		d3d.CmdList->SetDescriptorHeaps(1, &dxComp.descriptorHeap);
@@ -2174,6 +2211,11 @@ namespace DXR
 			static_cast<UINT>(ceil(d3d.Width / 32.0f)), 
 			static_cast<UINT>(ceil(d3d.Height / 32.0f)),
 			1u);
+
+		d3d.CmdList->ResourceBarrier(_countof(dlssUAVBarriers), dlssUAVBarriers);
+
+		//Start DLSS time
+		d3d.CmdList->EndQuery(resources.queryHeap, D3D12_QUERY_TYPE_TIMESTAMP, 2);
 
 		//DLSS Layer
 		if (dlssConfig.ShouldUseDLSS)
@@ -2267,6 +2309,9 @@ namespace DXR
 			d3d.CmdList->ResourceBarrier(1, &Barrier);
 		}
 
+		//End DLSS time
+		d3d.CmdList->EndQuery(resources.queryHeap, D3D12_QUERY_TYPE_TIMESTAMP, 3);
+
 		//Black out DLSS watermark if taking screenshot
 		if (scrshotRequested && dlssPreScrshot)
 		{
@@ -2282,7 +2327,8 @@ namespace DXR
 				1u);
 		}
 
-		//d3d.CmdList->ResourceBarrier(_countof(uavBarriers), uavBarriers);
+		//DLSS output barrier
+		d3d.CmdList->ResourceBarrier(1, &uavBarriers[3]);
 
 		// Transition Final output to a copy source
 		OutputBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
@@ -2339,6 +2385,9 @@ namespace DXR
 		OutputBarriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		OutputBarriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 		d3d.CmdList->ResourceBarrier(1, &OutputBarriers[0]);
+
+		//Resolve all timestamp queries
+		d3d.CmdList->ResolveQueryData(resources.queryHeap, D3D12_QUERY_TYPE_TIMESTAMP, 0, 4, resources.TimestampReadBack, 0);
 
 		// Submit the command list and wait for the GPU to idle
 		D3D12::Submit_CmdList(d3d);

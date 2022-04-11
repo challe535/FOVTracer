@@ -44,6 +44,9 @@ public:
 
 	float ViewportWidth = 0.0f;
 	float ViewportHeight = 0.0f;
+
+	float RaytraceTimeMS = 0.0f;
+	float DLSSTimeMS = 0.0f;
 private:
 	HWND Window = nullptr;
 	ImGuiContext* UIContext = nullptr;

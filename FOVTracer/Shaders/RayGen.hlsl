@@ -1,6 +1,11 @@
 #include "Common.hlsl"
 #include "KernelFov.hlsl"
 
+float Rand(float2 uv)
+{
+    return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
+}
+
 float4 getClip(float3 worldPos, float aspect)
 {
     float3 worldDelta = worldPos - viewOriginAndTanHalfFovY.xyz;
@@ -58,15 +63,11 @@ void RayGen()
     float3 finalColor = float3(0, 0, 0);
     float4 finalWorldPosAndDepth = float4(0, 0, 0, 0);
 
-    float pixelPadding = 0.1;
-
     float stepSize = 1.0 / float(params.sqrtSamplesPerPixel + 1);
-
+    
     float offsetX = stepSize;
     float offsetY = stepSize;
 
-    //float jitterAttenuation = 1 - kernelFunc(LaunchIndex.x / LaunchDimensions.x, params.kernelAlpha);
-    //float2 jitter = jitterOffset * (params.isFoveatedRenderingEnabled ? jitterAttenuation : 1);
     float2 jitter = jitterOffset * (params.isFoveatedRenderingEnabled ? 0 : 1);
 
     for (int i = 0; i < params.sqrtSamplesPerPixel; i++)

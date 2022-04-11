@@ -21,9 +21,6 @@
     <Filter Include="Source\Geometry">
       <UniqueIdentifier>{26174cba-464c-4482-8c01-4f1f9cea908e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Math">
-      <UniqueIdentifier>{e61f4323-f628-45d3-907e-3f1174b157fc}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source\Rendering">
       <UniqueIdentifier>{d29d35aa-a725-4af7-8cdc-926121e288fe}</UniqueIdentifier>
     </Filter>
@@ -32,6 +29,9 @@
     </Filter>
     <Filter Include="Source\ImGui">
       <UniqueIdentifier>{5e4b9826-521a-43ea-9b95-767d8f686c46}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Math">
+      <UniqueIdentifier>{e61f4323-f628-45d3-907e-3f1174b157fc}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

@@ -41,6 +41,8 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 	D3D12::Create_MipMap_PipelineState(D3D, DXCompute);
 	D3D12::Create_MipMap_Heap(D3D, DXCompute);
 
+	D3DResources::Create_Query_Heap(D3D, Resources);
+
 	for (int i = 0; i < scene.SceneObjects.size(); i++)
 		AddObject(scene.SceneObjects[i], i);
 
@@ -98,12 +100,23 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 
 }
 
-void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp)
+void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool disableFOV, bool disableDLSS)
 {
 	DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, scrshotRequested, DLSSConfigInfo.ShouldUseDLSS);
 	D3D12::Present(D3D);
 	D3D12::MoveToNextFrame(D3D);
 	D3D12::Reset_CommandList(D3D);
+
+	UINT64* pTimestampData = nullptr;
+	Resources.TimestampReadBack->Map(0, nullptr, reinterpret_cast<void**>(&pTimestampData));
+
+	UINT64 CmdQueueFreq;
+	D3D.CmdQueue->GetTimestampFrequency(&CmdQueueFreq);
+
+	auto& App = Application::GetApplication();
+	App.RaytraceTimeMS = App.RaytraceTimeMS * 0.9 + 0.1 * 1000 * (pTimestampData[1] - pTimestampData[0]) / (double)CmdQueueFreq;
+	App.DLSSTimeMS = App.DLSSTimeMS * 0.9 + 0.1 * 1000 * (pTimestampData[3] - pTimestampData[2]) / (double)CmdQueueFreq;
+	Resources.TimestampReadBack->Unmap(0, nullptr);
 
 	if (scrshotRequested)
 	{
@@ -113,10 +126,10 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp)
 
 		D3DResources::Update_SPP(Resources, groundTruthSqrtSpp);
 
-		bool PrevDLSS = DLSSConfigInfo.ShouldUseDLSS;
+		bool PrevDLSS = DLSSConfigInfo.ShouldUseDLSS && disableDLSS;
 		int PrevWidth = D3D.Width;
 		int PrevHeight = D3D.Height;
-		if (DLSSConfigInfo.ShouldUseDLSS)
+		if (PrevDLSS)
 		{
 			//Turn off DLSS temporarily
 			DLSSConfigInfo.ShouldUseDLSS = false;
@@ -124,11 +137,24 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp)
 			D3D.Width = TargetRes.Width;
 			D3D.Height = TargetRes.Height;
 
+			ComputeParams cparam = DXCompute.paramCBData;
+			TracerParameters tparam = Resources.paramCBData;
+			ViewCB vparam = Resources.viewCBData;
+
+			cparam.resoltion = DirectX::XMFLOAT2(D3D.Width, D3D.Height);
+
 			InitRenderPipeline(*SceneToTrace);
+
+			CORE_WARN("tparam fov = {0}", tparam.isFoveatedRenderingEnabled);
+			CORE_WARN("cparam fov = {0}", cparam.isFoveatedRenderingEnabled);
+
+			D3DResources::Update_Params_CB(Resources, tparam);
+			D3DResources::Update_View_CB(Resources, vparam);
+			D3D12::Update_Compute_Params(DXCompute, cparam);
 		}
 
-		bool PrevFOVRendering = Resources.paramCBData.isFoveatedRenderingEnabled;
-		if (Resources.paramCBData.isFoveatedRenderingEnabled)
+		//bool PrevFOVRendering = Resources.paramCBData.isFoveatedRenderingEnabled;
+		if (Resources.paramCBData.isFoveatedRenderingEnabled && disableFOV)
 		{
 			//Turn off foveated rendering temporarily
 			Resources.paramCBData.isFoveatedRenderingEnabled = false;
@@ -152,14 +178,6 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp)
 			D3D.Height = PrevHeight;
 
 			InitRenderPipeline(*SceneToTrace);
-		}
-
-		if (PrevFOVRendering)
-		{
-			Resources.paramCBData.isFoveatedRenderingEnabled = true;
-			DXCompute.paramCBData.isFoveatedRenderingEnabled = false;
-			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
-			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
 		auto ref = DumpFrameToFile("scrshot_gt");
