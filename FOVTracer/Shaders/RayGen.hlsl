@@ -68,7 +68,7 @@ void RayGen()
     float offsetX = stepSize;
     float offsetY = stepSize;
 
-    float2 jitter = jitterOffset * (params.isFoveatedRenderingEnabled ? 0 : 1);
+    float2 jitter = jitterOffset /** (params.isFoveatedRenderingEnabled ? 0 : 1)*/;
 
     for (int i = 0; i < params.sqrtSamplesPerPixel; i++)
     {
@@ -129,7 +129,34 @@ void RayGen()
 
     finalWorldPosAndDepth.a = clamp(finalWorldPosAndDepth.a * 0.0005, 0, 1);
 
+
     RTOutput[LaunchIndex.xy] = float4(finalColor, 1.0f);
+    
+    //switch (params.outBufferIndex)
+    //{
+    //    case 0:
+    //        RTOutput[LaunchIndex.xy] = float4(finalColor, 1.0f);
+    //        break;
+    //    case 1:
+    //        RTOutput1[LaunchIndex.xy] = float4(finalColor, 1.0f);
+    //        break;
+    //    case 2:
+    //        RTOutput2[LaunchIndex.xy] = float4(finalColor, 1.0f);
+    //        break;
+    //    case 3:
+    //        RTOutput3[LaunchIndex.xy] = float4(finalColor, 1.0f);
+    //        break;
+    //    case 4:
+    //        RTOutput4[LaunchIndex.xy] = float4(finalColor, 1.0f);
+    //        break;
+    //    default:
+    //        RTOutput[LaunchIndex.xy] = float4(0, 0, 0, 1.0f);
+    //        RTOutput1[LaunchIndex.xy] = float4(0, 0, 0, 1.0f);
+    //        RTOutput2[LaunchIndex.xy] = float4(0, 0, 0, 1.0f);
+    //        RTOutput3[LaunchIndex.xy] = float4(0, 0, 0, 1.0f);
+    //        RTOutput4[LaunchIndex.xy] = float4(0, 0, 0, 1.0f);
+    //        break;
+    //}
     
     float2 motionIndex = params.isFoveatedRenderingEnabled ? LogPolar2Screen(LaunchIndex + 0.5, LaunchDimensions, fovealPoint, B, L) : LaunchIndex + 0.5;
     float2 motion = motionIndex - getClip(WorldPosBuffer[LaunchIndex].xyz, aspectRatio).xy * LaunchDimensions;

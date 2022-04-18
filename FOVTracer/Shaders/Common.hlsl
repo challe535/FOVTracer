@@ -53,13 +53,18 @@ struct TraceParamsCB
     float kernelAlpha;
     float viewportRatio;
     bool isDLSSEnabled;
+    uint outBufferIndex;
 };
 
 ConstantBuffer<TraceParamsCB> params : register(b2);
 
 RWTexture2D<float4> RTOutput				: register(u0);
-RWTexture2D<float2> MotionOutput            : register(u1);
-RWTexture2D<float4> WorldPosBuffer          : register(u2);
+RWTexture2D<float4> RTOutput1				: register(u1);
+RWTexture2D<float4> RTOutput2				: register(u2);
+RWTexture2D<float4> RTOutput3				: register(u3);
+RWTexture2D<float4> RTOutput4				: register(u4);
+RWTexture2D<float2> MotionOutput            : register(u5);
+RWTexture2D<float4> WorldPosBuffer          : register(u6);
 
 RaytracingAccelerationStructure SceneBVH	: register(t0);
 

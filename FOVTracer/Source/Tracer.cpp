@@ -67,7 +67,9 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 		return;
 	}
 
-	if (DLSSConfigInfo.ShouldUseDLSS /*&& !params.isFoveatedRenderingEnabled*/)
+	cParams.lastJitterOffset = DirectX::XMFLOAT2(DLSSConfigInfo.JitterOffset.X, DLSSConfigInfo.JitterOffset.Y);
+
+	//if (DLSSConfigInfo.ShouldUseDLSS /*&& !params.isFoveatedRenderingEnabled*/)
 	{
 
 		float RenderTargetRatio = static_cast<float>(TargetRes.Width) / D3D.Width;
@@ -80,15 +82,18 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 
 		DLSSConfigInfo.JitterOffset = DLSSConfigInfo.JitterOffset * jitterStrength;
 	}
-	else
-	{
-		DLSSConfigInfo.JitterOffset.X = 0;
-		DLSSConfigInfo.JitterOffset.Y = 0;
-	}
+	//else
+	//{
+	//	DLSSConfigInfo.JitterOffset.X = 0;
+	//	DLSSConfigInfo.JitterOffset.Y = 0;
+	//}
+
+	params.outBufferIndex = Application::GetApplication().FrameCount % NUM_HISTORY_BUFFER;
 
 	params.viewportRatio = 1920  / D3D.Width;
 	params.isDLSSEnabled = DLSSConfigInfo.ShouldUseDLSS;
 
+	cParams.currentBufferIndex = params.outBufferIndex;
 	cParams.resoltion = DirectX::XMFLOAT2(D3D.Width, D3D.Height);
 	cParams.jitterOffset = DirectX::XMFLOAT2(DLSSConfigInfo.JitterOffset.X, DLSSConfigInfo.JitterOffset.Y);
 
@@ -100,9 +105,18 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 
 }
 
-void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool disableFOV, bool disableDLSS)
+void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool disableFOV, bool disableDLSS, uint32_t numberOfScreenshots)
 {
-	DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, scrshotRequested, DLSSConfigInfo.ShouldUseDLSS);
+	if (scrshotRequested && screenshotsLeftToTake == 0)
+	{
+		screenshotsLeftToTake = numberOfScreenshots;
+		disableDLSSForScreenShot = disableDLSS;
+		disableFOVForScreenShot = disableFOV;
+	}
+
+	bool isTakingScreenshotThisFrame = screenshotsLeftToTake > 0;
+
+	DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, isTakingScreenshotThisFrame, DLSSConfigInfo.ShouldUseDLSS);
 	D3D12::Present(D3D);
 	D3D12::MoveToNextFrame(D3D);
 	D3D12::Reset_CommandList(D3D);
@@ -118,7 +132,7 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 	App.DLSSTimeMS = App.DLSSTimeMS * 0.9 + 0.1 * 1000 * (pTimestampData[3] - pTimestampData[2]) / (double)CmdQueueFreq;
 	Resources.TimestampReadBack->Unmap(0, nullptr);
 
-	if (scrshotRequested)
+	if (isTakingScreenshotThisFrame)
 	{
 		auto test = DumpFrameToFile("scrshot");
 
@@ -126,7 +140,7 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 
 		D3DResources::Update_SPP(Resources, groundTruthSqrtSpp);
 
-		bool PrevDLSS = DLSSConfigInfo.ShouldUseDLSS && disableDLSS;
+		bool PrevDLSS = DLSSConfigInfo.ShouldUseDLSS && disableDLSSForScreenShot;
 		int PrevWidth = D3D.Width;
 		int PrevHeight = D3D.Height;
 		if (PrevDLSS)
@@ -138,23 +152,12 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			D3D.Height = TargetRes.Height;
 
 			ComputeParams cparam = DXCompute.paramCBData;
-			TracerParameters tparam = Resources.paramCBData;
-			ViewCB vparam = Resources.viewCBData;
-
 			cparam.resoltion = DirectX::XMFLOAT2(D3D.Width, D3D.Height);
-
-			InitRenderPipeline(*SceneToTrace);
-
-			CORE_WARN("tparam fov = {0}", tparam.isFoveatedRenderingEnabled);
-			CORE_WARN("cparam fov = {0}", cparam.isFoveatedRenderingEnabled);
-
-			D3DResources::Update_Params_CB(Resources, tparam);
-			D3DResources::Update_View_CB(Resources, vparam);
 			D3D12::Update_Compute_Params(DXCompute, cparam);
 		}
 
 		//bool PrevFOVRendering = Resources.paramCBData.isFoveatedRenderingEnabled;
-		if (Resources.paramCBData.isFoveatedRenderingEnabled && disableFOV)
+		if (Resources.paramCBData.isFoveatedRenderingEnabled && disableFOVForScreenShot)
 		{
 			//Turn off foveated rendering temporarily
 			Resources.paramCBData.isFoveatedRenderingEnabled = false;
@@ -163,7 +166,7 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
-		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, scrshotRequested, PrevDLSS);
+		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, isTakingScreenshotThisFrame, PrevDLSS);
 		D3D12::MoveToNextFrame(D3D);
 		D3D12::Reset_CommandList(D3D);
 		D3D12::WaitForGPU(D3D);
@@ -176,8 +179,6 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 
 			D3D.Width = PrevWidth;
 			D3D.Height = PrevHeight;
-
-			InitRenderPipeline(*SceneToTrace);
 		}
 
 		auto ref = DumpFrameToFile("scrshot_gt");
@@ -189,6 +190,7 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 		CORE_TRACE("Running FLIP");
 		AppWindow::Startup(L"../FLIP/flip-cuda.exe", wcmdLine.data());
 
+		screenshotsLeftToTake--;
 	}
 }
 
@@ -318,7 +320,8 @@ void Tracer::SetResolution(const char* ResolutionName, bool IsDLSSEnabled, float
 
 			CORE_WARN("{0}, {1}", RenderRes.Width, RenderRes.Height);
 		}
-			
+		
+		if(DLSSConfigInfo.DLSSFeature) NVSDK_NGX_D3D12_ReleaseFeature(DLSSConfigInfo.DLSSFeature);
 		DLSSConfigInfo.ShouldUseDLSS = CreateDLSSFeature(Quality, RenderRes, TargetRes, true);
 
 		CORE_INFO("DLSS Sharpness set to {0}", DLSSConfigInfo.sharpness);
@@ -329,7 +332,7 @@ void Tracer::SetResolution(const char* ResolutionName, bool IsDLSSEnabled, float
 
 	//Application::GetApplication().Resize(TargetRes.Width, TargetRes.Height);
 	
-	InitRenderPipeline(*SceneToTrace);
+	//InitRenderPipeline(*SceneToTrace);
 
 	CORE_INFO("Set resolution to {0}x{1}", D3D.Width, D3D.Height);
 }
@@ -362,9 +365,9 @@ bool Tracer::CreateDLSSFeature(NVSDK_NGX_PerfQuality_Value Quality, Resolution O
 	//DlssCreateFeatureFlags |= NVSDK_NGX_DLSS_Feature_Flags_MVJittered;
 	DlssCreateFeatureFlags |= EnableSharpening ? NVSDK_NGX_DLSS_Feature_Flags_DoSharpening : 0;
 
-	NVSDK_NGX_DLSS_Create_Params DlssCreateParams;
+	NVSDK_NGX_DLSS_Create_Params DlssCreateParams = {};
 
-	memset(&DlssCreateParams, 0, sizeof(DlssCreateParams));
+	//memset(&DlssCreateParams, 0, sizeof(DlssCreateParams));
 
 	DlssCreateParams.Feature.InWidth = OptimalRenderSize.Width;
 	DlssCreateParams.Feature.InHeight = OptimalRenderSize.Height;
@@ -395,6 +398,8 @@ bool Tracer::CreateDLSSFeature(NVSDK_NGX_PerfQuality_Value Quality, Resolution O
 
 void Tracer::InitRenderPipeline(Scene& scene)
 {
+	PipelineCleanup();
+
 	D3DResources::Create_Descriptor_Heaps(D3D, Resources);
 	D3DResources::Create_BackBuffer_RTV(D3D, Resources);
 	D3DResources::Create_View_CB(D3D, Resources);
@@ -404,7 +409,7 @@ void Tracer::InitRenderPipeline(Scene& scene)
 	DXR::Create_DXR_Output(D3D, Resources);
 	D3D12::Create_Compute_Output(D3D, Resources);
 
-	DXR::Create_Non_Shader_Visible_Heap(D3D, Resources);
+	//DXR::Create_Non_Shader_Visible_Heap(D3D, Resources);
 	DXR::Create_Descriptor_Heaps(D3D, DXR, Resources, scene);
 
 	DXR::Create_RayGen_Program(D3D, DXR, ShaderCompiler);
@@ -429,6 +434,49 @@ void Tracer::InitRenderPipeline(Scene& scene)
 	D3D12::WaitForGPU(D3D);
 	D3D12::Reset_CommandList(D3D);
 }
+
+void Tracer::PipelineCleanup()
+{
+	//Should probably be handeled in the directx files
+
+	SAFE_RELEASE(Resources.rtvHeap);
+	SAFE_RELEASE(D3D.BackBuffer[0]);
+	SAFE_RELEASE(D3D.BackBuffer[1]);
+
+	SAFE_RELEASE(Resources.viewCB);
+	SAFE_RELEASE(Resources.paramCB);
+
+	for(int i = 0; i < NUM_HISTORY_BUFFER; i++)
+		SAFE_RELEASE(Resources.DXROutput[i]);
+	SAFE_RELEASE(Resources.Log2CartOutput);
+	//SAFE_RELEASE(Resources.cpuOnlyHeap);
+	SAFE_RELEASE(Resources.descriptorHeap);
+
+	SAFE_RELEASE(DXR.rgs.blob);
+	SAFE_RELEASE(DXR.rgs.pRootSignature);
+	SAFE_RELEASE(DXR.miss.blob);
+	SAFE_RELEASE(DXR.miss.pRootSignature);
+	SAFE_RELEASE(DXR.hit.chs.blob);
+	SAFE_RELEASE(DXR.hit.chs.pRootSignature);
+	SAFE_RELEASE(DXR.hit.ahs.blob);
+	SAFE_RELEASE(DXR.hit.ahs.pRootSignature);
+	SAFE_RELEASE(DXR.shadow_miss.blob);
+	SAFE_RELEASE(DXR.shadow_miss.pRootSignature);
+	SAFE_RELEASE(DXR.shadow_hit.chs.blob);
+	SAFE_RELEASE(DXR.shadow_hit.chs.pRootSignature);
+	SAFE_RELEASE(DXR.shadow_hit.ahs.blob);
+	SAFE_RELEASE(DXR.shadow_hit.ahs.pRootSignature);
+	SAFE_RELEASE(DXR.rtpso);
+	SAFE_RELEASE(DXR.rtpsoInfo);
+	SAFE_RELEASE(DXR.shaderTable);
+
+	SAFE_RELEASE(DXCompute.paramCB);
+	SAFE_RELEASE(DXCompute.csProgram);
+	SAFE_RELEASE(DXCompute.pRootSignature);
+	SAFE_RELEASE(DXCompute.cps);
+	SAFE_RELEASE(DXCompute.descriptorHeap);
+}
+
 
 void Tracer::InitNGX()
 {

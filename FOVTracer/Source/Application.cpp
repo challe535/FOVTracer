@@ -89,7 +89,16 @@ void Application::Run()
 
 	bool scrShotDisableDLSS = false;
 	bool scrShotDisableFOV = false;
+	bool swayCamera = false;
+	float cameraSwaySpeed = 0.1f;
 	uint32_t scrShotSqrtSamples = 6;
+	uint32_t nScrShot = 1;
+
+
+	float cameraInterpT = 0.0f;
+
+	Camera& SceneCamera = RayScene.SceneCamera;
+	Quaternion OriginalCamOrianetation = SceneCamera.Orientation;
 
 	while (WM_QUIT != msg.message)
 	{
@@ -110,8 +119,6 @@ void Application::Run()
 		ComputeParams.fovealCenter = TraceParams.fovealCenter;
 		ComputeParams.isFoveatedRenderingEnabled = TraceParams.isFoveatedRenderingEnabled;
 		ComputeParams.kernelAlpha = TraceParams.kernelAlpha;
-
-		Camera& SceneCamera = RayScene.SceneCamera;
 
 		float CameraForwardMove = static_cast<float>(InputHandler->IsKeyDown(W_KEY) - InputHandler->IsKeyDown(S_KEY));
 		float CameraRightMove = static_cast<float>(InputHandler->IsKeyDown(D_KEY) - InputHandler->IsKeyDown(A_KEY));
@@ -142,6 +149,13 @@ void Application::Run()
 		else
 		{
 			LMouseClicked = false;
+		}
+
+		if (swayCamera)
+		{
+			cameraInterpT += /*DeltaTime **/ cameraSwaySpeed;
+			Vector3f Rotation = Vector3f(0, sin(cameraInterpT), 0);
+			SceneCamera.Orientation = OriginalCamOrianetation * Quaternion(Rotation.X, Rotation.Y, Rotation.Z);
 		}
 
 		RayTracer.Update(RayScene, TraceParams, ComputeParams, jitterStrength);
@@ -203,13 +217,16 @@ void Application::Run()
 			ImGui::Separator();
 			ImGui::Text("Screenshot reference parameters");
 			ImGui::SliderInt("Screenshot sqrt spp", reinterpret_cast<int*>(&scrShotSqrtSamples), 1, 15);
+			ImGui::SliderInt("Number of screenshots", reinterpret_cast<int*>(&nScrShot), 1, 300);
 			ImGui::Checkbox("Disable DLSS", &scrShotDisableDLSS);
 			ImGui::Checkbox("Disable Foveation", &scrShotDisableFOV);
+			ImGui::Checkbox("Sway camera", &swayCamera);
+			ImGui::SliderFloat("Sway speed", &cameraSwaySpeed, 0.f, 2.0f);
 		}
 		ImGui::End();
 
 		ImGui::Render();
-		RayTracer.Render(InputHandler->IsKeyJustPressed(P_KEY), scrShotSqrtSamples, scrShotDisableFOV, scrShotDisableDLSS);
+		RayTracer.Render(InputHandler->IsKeyJustPressed(P_KEY), scrShotSqrtSamples, scrShotDisableFOV, scrShotDisableDLSS, nScrShot);
 
 		auto const FrameEnd = std::chrono::high_resolution_clock::now();
 

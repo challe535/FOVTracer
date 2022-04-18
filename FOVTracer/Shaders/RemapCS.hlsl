@@ -17,14 +17,21 @@ cbuffer ParamsCB : register(b0)
     bool isMotionView;
     bool isDepthView;
     bool isWorldPosView;
+    uint currentBufferIndex;
+    
+    float2 lastJitterOffset;
 }
 
-RWTexture2D<float4> InColorBuffer : register(u0);
-RWTexture2D<float4> OutColorBuffer : register(u1);
-RWTexture2D<float2> InMotionBuffer : register(u2);
-RWTexture2D<float2> OutMotionBuffer : register(u3);
-RWTexture2D<float4> WorldPosBuffer : register(u4);
-RWTexture2D<float> DepthOutBuffer : register(u5);
+RWTexture2D<float4> InColorBuffer   : register(u0);
+RWTexture2D<float4> InColorBuffer1  : register(u1);
+RWTexture2D<float4> InColorBuffer2  : register(u2);
+RWTexture2D<float4> InColorBuffer3  : register(u3);
+RWTexture2D<float4> InColorBuffer4  : register(u4);
+RWTexture2D<float4> OutColorBuffer  : register(u5);
+RWTexture2D<float2> InMotionBuffer  : register(u6);
+RWTexture2D<float2> OutMotionBuffer : register(u7);
+RWTexture2D<float4> WorldPosBuffer  : register(u8);
+RWTexture2D<float> DepthOutBuffer   : register(u9);
 
 
 float4 sampleTexture(RWTexture2D<float4> buffer, float2 index, int kernelSize)
@@ -59,6 +66,65 @@ float4 sampleTexture(RWTexture2D<float4> buffer, float2 index, int kernelSize)
     return result;
 }
 
+//float3 ResolveTAA(float2 index, int kernelSize)
+//{
+//    float3 result;
+    
+//    switch (currentBufferIndex)
+//    {
+//        case 0:
+//            result = (
+//                sampleTexture(InColorBuffer, index, kernelSize).rgb
+//                + sampleTexture(InColorBuffer4, index, kernelSize).rgb * 0.5
+//                + sampleTexture(InColorBuffer3, index, kernelSize).rgb * 0.25
+//                + sampleTexture(InColorBuffer2, index, kernelSize).rgb * 0.125
+//                + sampleTexture(InColorBuffer1, index, kernelSize).rgb * 0.0625
+//                ) / (1 + 0.5 + 0.25 + 0.125 + 0.0625);
+//            break;
+//        case 1:
+//            result = (
+//                sampleTexture(InColorBuffer1, index, kernelSize).rgb
+//                + sampleTexture(InColorBuffer, index, kernelSize).rgb * 0.5
+//                + sampleTexture(InColorBuffer4, index, kernelSize).rgb * 0.25
+//                + sampleTexture(InColorBuffer3, index, kernelSize).rgb * 0.125
+//                + sampleTexture(InColorBuffer2, index, kernelSize).rgb * 0.0625
+//                ) / (1 + 0.5 + 0.25 + 0.125 + 0.0625);
+//            break;
+//        case 2:
+//            result = (
+//                sampleTexture(InColorBuffer2, index, kernelSize).rgb
+//                + sampleTexture(InColorBuffer1, index, kernelSize).rgb * 0.5
+//                + sampleTexture(InColorBuffer, index, kernelSize).rgb * 0.25
+//                + sampleTexture(InColorBuffer4, index, kernelSize).rgb * 0.125
+//                + sampleTexture(InColorBuffer3, index, kernelSize).rgb * 0.0625
+//                ) / (1 + 0.5 + 0.25 + 0.125 + 0.0625);
+//            break;
+//        case 3:
+//            result = (
+//                sampleTexture(InColorBuffer3, index, kernelSize).rgb
+//                + sampleTexture(InColorBuffer2, index, kernelSize).rgb * 0.5
+//                + sampleTexture(InColorBuffer1, index, kernelSize).rgb * 0.25
+//                + sampleTexture(InColorBuffer, index, kernelSize).rgb * 0.125
+//                + sampleTexture(InColorBuffer4, index, kernelSize).rgb * 0.0625
+//                ) / (1 + 0.5 + 0.25 + 0.125 + 0.0625);
+//            break;
+//        case 4:
+//            result = (
+//                sampleTexture(InColorBuffer4, index, kernelSize).rgb
+//                + sampleTexture(InColorBuffer3, index, kernelSize).rgb * 0.5
+//                + sampleTexture(InColorBuffer2, index, kernelSize).rgb * 0.25
+//                + sampleTexture(InColorBuffer1, index, kernelSize).rgb * 0.125
+//                + sampleTexture(InColorBuffer, index, kernelSize).rgb * 0.0625
+//                ) / (1 + 0.5 + 0.25 + 0.125 + 0.0625);
+//            break;
+//        default:
+//            result = float3(0, 0, 1);
+//            break;
+//    }
+    
+//    return result;
+//}
+
 [numthreads(BLOCKSIZE, BLOCKSIZE, 1)]
 void CSMain(uint3 DTid : SV_DispatchThreadID)
 {
@@ -76,7 +142,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
 
     if (isFoveatedRenderingEnabled)
     {
-        LaunchIndex += jitterOffset;
+        //LaunchIndex += jitterOffset;
         
         float2 fovealPoint = fovealCenter * resolution;
 
@@ -140,5 +206,11 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
 
     OutMotionBuffer[DTid.xy] = motion;
     DepthOutBuffer[DTid.xy] = depth;
-    OutColorBuffer[DTid.xy] = float4(finalColor, 1.0f);
+    
+    float2 historyIndex = LaunchIndex + 0.5 + motion;
+    
+    if (historyIndex.x >= resolution.x || historyIndex.x < 0 || historyIndex.y >= resolution.y || historyIndex.y < 0)
+        OutColorBuffer[DTid.xy] = float4(finalColor, 1.0f);
+    else
+        OutColorBuffer[DTid.xy] = float4(finalColor * 0.1 + InColorBuffer1[historyIndex].rgb * 0.9, 1.0f);
 }

@@ -24,11 +24,11 @@
 #include <unordered_map>
 
 #define NAME_D3D_RESOURCES 1
-
+#define NUM_HISTORY_BUFFER 5
 
 namespace DX12Constants
 {
-	constexpr uint32_t descriptors_per_shader = 12;
+	constexpr uint32_t descriptors_per_shader = 11 + NUM_HISTORY_BUFFER;
 }
 
 static const D3D12_HEAP_PROPERTIES UploadHeapProperties =
@@ -75,6 +75,7 @@ struct TracerParameters
 	float kernelAlpha = 1.0f;
 	float viewportRatio = 1.0f;
 	uint32_t isDLSSEnabled = 0;
+	uint32_t outBufferIndex = 0;
 };
 
 struct TextureInfo
@@ -143,7 +144,9 @@ struct ComputeParams
 	uint32_t isMotionView = 0;
 	uint32_t isDepthView = 0;
 	uint32_t isWorldPosView = 0;
+	uint32_t currentBufferIndex = 0;
 
+	DirectX::XMFLOAT2 lastJitterOffset = DirectX::XMFLOAT2(0, 0);
 };
 
 struct ComputeProgram
@@ -246,7 +249,7 @@ struct SceneObjectResource
 
 struct D3D12Resources
 {
-	ID3D12Resource* DXROutput;
+	ID3D12Resource* DXROutput[NUM_HISTORY_BUFFER];
 	ID3D12Resource* MotionOutput;
 	ID3D12Resource* FinalMotionOutput;
 	ID3D12Resource* WorldPosBuffer;
@@ -272,7 +275,7 @@ struct D3D12Resources
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
 	ID3D12DescriptorHeap* descriptorHeap = nullptr;
 	ID3D12DescriptorHeap* uiHeap = nullptr;
-	ID3D12DescriptorHeap* cpuOnlyHeap = nullptr;
+	//ID3D12DescriptorHeap* cpuOnlyHeap = nullptr;
 	ID3D12QueryHeap* queryHeap = nullptr;
 
 	UINT											rtvDescSize = 0;
@@ -477,7 +480,7 @@ namespace DXR
 	void Create_Pipeline_State_Object(D3D12Global& d3d, DXRGlobal& dxr);
 	void Create_Shader_Table(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources);
 
-	void Create_Non_Shader_Visible_Heap(D3D12Global& d3d, D3D12Resources& resources);
+	//void Create_Non_Shader_Visible_Heap(D3D12Global& d3d, D3D12Resources& resources);
 	void Create_Descriptor_Heaps(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, Scene& scene); // Creates raytracing shader heap
 
 	void Create_DLSS_Output(D3D12Global& d3d, D3D12Resources& resources);
