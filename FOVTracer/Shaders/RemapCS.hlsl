@@ -17,9 +17,8 @@ cbuffer ParamsCB : register(b0)
     bool isMotionView;
     bool isDepthView;
     bool isWorldPosView;
-    uint currentBufferIndex;
     
-    float2 lastJitterOffset;
+    bool resetColorHistory;
 }
 
 RWTexture2D<float4> InColorBuffer   : register(u0);
@@ -207,10 +206,10 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     OutMotionBuffer[DTid.xy] = motion;
     DepthOutBuffer[DTid.xy] = depth;
     
-    float2 historyIndex = LaunchIndex + 0.5 + motion;
+    float2 historyIndex = DTid.xy + 0.5 + motion;
     
-    if (historyIndex.x >= resolution.x || historyIndex.x < 0 || historyIndex.y >= resolution.y || historyIndex.y < 0)
+    if (historyIndex.x >= resolution.x || historyIndex.x < 0 || historyIndex.y >= resolution.y || historyIndex.y < 0 || resetColorHistory)
         OutColorBuffer[DTid.xy] = float4(finalColor, 1.0f);
     else
-        OutColorBuffer[DTid.xy] = float4(finalColor * 0.1 + InColorBuffer1[historyIndex].rgb * 0.9, 1.0f);
+        OutColorBuffer[DTid.xy] = float4(finalColor * 0.2 + InColorBuffer1[historyIndex].rgb * 0.8, 1.0f);
 }

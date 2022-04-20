@@ -119,6 +119,7 @@ void Application::Run()
 		ComputeParams.fovealCenter = TraceParams.fovealCenter;
 		ComputeParams.isFoveatedRenderingEnabled = TraceParams.isFoveatedRenderingEnabled;
 		ComputeParams.kernelAlpha = TraceParams.kernelAlpha;
+		//ComputeParams.resetColorHistory = false;
 
 		float CameraForwardMove = static_cast<float>(InputHandler->IsKeyDown(W_KEY) - InputHandler->IsKeyDown(S_KEY));
 		float CameraRightMove = static_cast<float>(InputHandler->IsKeyDown(D_KEY) - InputHandler->IsKeyDown(A_KEY));

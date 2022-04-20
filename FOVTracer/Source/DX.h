@@ -144,9 +144,7 @@ struct ComputeParams
 	uint32_t isMotionView = 0;
 	uint32_t isDepthView = 0;
 	uint32_t isWorldPosView = 0;
-	uint32_t currentBufferIndex = 0;
-
-	DirectX::XMFLOAT2 lastJitterOffset = DirectX::XMFLOAT2(0, 0);
+	uint32_t resetColorHistory = 0;
 };
 
 struct ComputeProgram

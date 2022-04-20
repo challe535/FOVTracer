@@ -68,6 +68,7 @@ protected:
 	bool IsDLSSFeatureInitialized = false;
 
 	uint32_t screenshotsLeftToTake = 0;
+	uint32_t totalScreenshots = 0;
 	bool disableDLSSForScreenShot = false;
 	bool disableFOVForScreenShot = false;
 };

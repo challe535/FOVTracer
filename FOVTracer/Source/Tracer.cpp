@@ -67,7 +67,7 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 		return;
 	}
 
-	cParams.lastJitterOffset = DirectX::XMFLOAT2(DLSSConfigInfo.JitterOffset.X, DLSSConfigInfo.JitterOffset.Y);
+	//cParams.lastJitterOffset = DirectX::XMFLOAT2(DLSSConfigInfo.JitterOffset.X, DLSSConfigInfo.JitterOffset.Y);
 
 	//if (DLSSConfigInfo.ShouldUseDLSS /*&& !params.isFoveatedRenderingEnabled*/)
 	{
@@ -93,7 +93,7 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 	params.viewportRatio = 1920  / D3D.Width;
 	params.isDLSSEnabled = DLSSConfigInfo.ShouldUseDLSS;
 
-	cParams.currentBufferIndex = params.outBufferIndex;
+	//cParams.currentBufferIndex = params.outBufferIndex;
 	cParams.resoltion = DirectX::XMFLOAT2(D3D.Width, D3D.Height);
 	cParams.jitterOffset = DirectX::XMFLOAT2(DLSSConfigInfo.JitterOffset.X, DLSSConfigInfo.JitterOffset.Y);
 
@@ -110,6 +110,7 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 	if (scrshotRequested && screenshotsLeftToTake == 0)
 	{
 		screenshotsLeftToTake = numberOfScreenshots;
+		totalScreenshots = numberOfScreenshots;
 		disableDLSSForScreenShot = disableDLSS;
 		disableFOVForScreenShot = disableFOV;
 	}
@@ -134,6 +135,29 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 
 	if (isTakingScreenshotThisFrame)
 	{
+
+		{
+			DXCompute.paramCBData.resetColorHistory = true;
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
+			D3D12::Reset_CommandList(D3D);
+			D3D12::WaitForGPU(D3D);
+
+			DXCompute.paramCBData.resetColorHistory = false;
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+		}
+
+		for (int i = 0; i < 4; i++)
+		{
+			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
+			D3D12::Reset_CommandList(D3D);
+			D3D12::WaitForGPU(D3D);
+		}
+
+		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, isTakingScreenshotThisFrame, DLSSConfigInfo.ShouldUseDLSS);
+		D3D12::Reset_CommandList(D3D);
+		D3D12::WaitForGPU(D3D);
+
 		auto test = DumpFrameToFile("scrshot");
 
 		uint32_t currentSpp = Resources.paramCBData.sqrtSamplesPerPixel;
@@ -156,18 +180,45 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			D3D12::Update_Compute_Params(DXCompute, cparam);
 		}
 
-		//bool PrevFOVRendering = Resources.paramCBData.isFoveatedRenderingEnabled;
-		if (Resources.paramCBData.isFoveatedRenderingEnabled && disableFOVForScreenShot)
+		bool PrevFOVRendering = Resources.paramCBData.isFoveatedRenderingEnabled && disableFOVForScreenShot;
+		if (PrevFOVRendering)
 		{
 			//Turn off foveated rendering temporarily
 			Resources.paramCBData.isFoveatedRenderingEnabled = false;
-			DXCompute.paramCBData.isFoveatedRenderingEnabled = false;
 			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
+
+			DXCompute.paramCBData.isFoveatedRenderingEnabled = false;
+			DXCompute.paramCBData.resetColorHistory = true;
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+
+			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
+			D3D12::Reset_CommandList(D3D);
+			D3D12::WaitForGPU(D3D);
+
+			DXCompute.paramCBData.resetColorHistory = false;
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
+		if (PrevDLSS || PrevFOVRendering)
+		{
+			DXCompute.paramCBData.resetColorHistory = true;
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
+			D3D12::Reset_CommandList(D3D);
+			D3D12::WaitForGPU(D3D);
+
+			DXCompute.paramCBData.resetColorHistory = false;
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+		}
+
+		for (int i = 0; i < 5; i++)
+		{
+			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
+			D3D12::Reset_CommandList(D3D);
+			D3D12::WaitForGPU(D3D);
+		}
+
 		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, isTakingScreenshotThisFrame, PrevDLSS);
-		D3D12::MoveToNextFrame(D3D);
 		D3D12::Reset_CommandList(D3D);
 		D3D12::WaitForGPU(D3D);
 
@@ -181,6 +232,28 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			D3D.Height = PrevHeight;
 		}
 
+		if (PrevFOVRendering)
+		{
+			//Turn off foveated rendering temporarily
+			Resources.paramCBData.isFoveatedRenderingEnabled = true;
+			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
+
+			DXCompute.paramCBData.isFoveatedRenderingEnabled = true;
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+		}
+
+		if (PrevDLSS || PrevFOVRendering)
+		{
+			DXCompute.paramCBData.resetColorHistory = true;
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
+			D3D12::Reset_CommandList(D3D);
+			D3D12::WaitForGPU(D3D);
+
+			DXCompute.paramCBData.resetColorHistory = false;
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+		}
+
 		auto ref = DumpFrameToFile("scrshot_gt");
 
 		std::string cmdLine("../FLIP/flip-cuda.exe --reference ");
@@ -191,6 +264,8 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 		AppWindow::Startup(L"../FLIP/flip-cuda.exe", wcmdLine.data());
 
 		screenshotsLeftToTake--;
+
+		CORE_TRACE("Screenshots progress: {0}%", (int)(100.0f * (1.0f - (screenshotsLeftToTake / (float)totalScreenshots))));
 	}
 }
 
