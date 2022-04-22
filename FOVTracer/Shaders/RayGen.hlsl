@@ -85,12 +85,13 @@ void RayGen()
             RayDesc ray;
             ray.Origin = viewOriginAndTanHalfFovY.xyz;
             ray.Direction = jitterDir;
-            ray.TMin = 0.1f;
+            ray.TMin = 0.01f;
             ray.TMax = 100000.f;
 
 	        // Trace the ray
             HitInfo payload;
             payload.ShadedColorAndHitT = float4(0.f, 0.f, 0.f, 0.f);
+            payload.RecursionDepthRemaining = 3;
 
             Node n;
             n.depth = ray.TMax * 2;

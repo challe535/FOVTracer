@@ -18,7 +18,7 @@ cbuffer ParamsCB : register(b0)
     bool isDepthView;
     bool isWorldPosView;
     
-    bool resetColorHistory;
+    bool disableTAA;
 }
 
 RWTexture2D<float4> InColorBuffer   : register(u0);
@@ -208,7 +208,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     
     float2 historyIndex = DTid.xy + 0.5 + motion;
     
-    if (historyIndex.x >= resolution.x || historyIndex.x < 0 || historyIndex.y >= resolution.y || historyIndex.y < 0 || resetColorHistory)
+    if (historyIndex.x >= resolution.x || historyIndex.x < 0 || historyIndex.y >= resolution.y || historyIndex.y < 0 || disableTAA)
         OutColorBuffer[DTid.xy] = float4(finalColor, 1.0f);
     else
         OutColorBuffer[DTid.xy] = float4(finalColor * 0.2 + InColorBuffer1[historyIndex].rgb * 0.8, 1.0f);

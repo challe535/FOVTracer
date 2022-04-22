@@ -69,7 +69,7 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 
 	//cParams.lastJitterOffset = DirectX::XMFLOAT2(DLSSConfigInfo.JitterOffset.X, DLSSConfigInfo.JitterOffset.Y);
 
-	//if (DLSSConfigInfo.ShouldUseDLSS /*&& !params.isFoveatedRenderingEnabled*/)
+	if (DLSSConfigInfo.ShouldUseDLSS || !cParams.disableTAA)
 	{
 
 		float RenderTargetRatio = static_cast<float>(TargetRes.Width) / D3D.Width;
@@ -82,11 +82,11 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 
 		DLSSConfigInfo.JitterOffset = DLSSConfigInfo.JitterOffset * jitterStrength;
 	}
-	//else
-	//{
-	//	DLSSConfigInfo.JitterOffset.X = 0;
-	//	DLSSConfigInfo.JitterOffset.Y = 0;
-	//}
+	else
+	{
+		DLSSConfigInfo.JitterOffset.X = 0;
+		DLSSConfigInfo.JitterOffset.Y = 0;
+	}
 
 	params.outBufferIndex = Application::GetApplication().FrameCount % NUM_HISTORY_BUFFER;
 
@@ -113,6 +113,8 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 		totalScreenshots = numberOfScreenshots;
 		disableDLSSForScreenShot = disableDLSS;
 		disableFOVForScreenShot = disableFOV;
+
+		Application::GetApplication().IsRecording = true;
 	}
 
 	bool isTakingScreenshotThisFrame = screenshotsLeftToTake > 0;
@@ -136,14 +138,15 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 	if (isTakingScreenshotThisFrame)
 	{
 
+		if (!DXCompute.paramCBData.disableTAA)
 		{
-			DXCompute.paramCBData.resetColorHistory = true;
+			DXCompute.paramCBData.disableTAA = true;
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
 			D3D12::Reset_CommandList(D3D);
 			D3D12::WaitForGPU(D3D);
 
-			DXCompute.paramCBData.resetColorHistory = false;
+			DXCompute.paramCBData.disableTAA = false;
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
@@ -188,26 +191,18 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
 
 			DXCompute.paramCBData.isFoveatedRenderingEnabled = false;
-			DXCompute.paramCBData.resetColorHistory = true;
-			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
-
-			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
-			D3D12::Reset_CommandList(D3D);
-			D3D12::WaitForGPU(D3D);
-
-			DXCompute.paramCBData.resetColorHistory = false;
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
-		if (PrevDLSS || PrevFOVRendering)
+		if (!DXCompute.paramCBData.disableTAA || PrevDLSS || PrevFOVRendering)
 		{
-			DXCompute.paramCBData.resetColorHistory = true;
+			DXCompute.paramCBData.disableTAA = true;
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
 			D3D12::Reset_CommandList(D3D);
 			D3D12::WaitForGPU(D3D);
 
-			DXCompute.paramCBData.resetColorHistory = false;
+			DXCompute.paramCBData.disableTAA = false;
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
@@ -242,15 +237,15 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
-		if (PrevDLSS || PrevFOVRendering)
+		if (!DXCompute.paramCBData.disableTAA || PrevDLSS || PrevFOVRendering)
 		{
-			DXCompute.paramCBData.resetColorHistory = true;
+			DXCompute.paramCBData.disableTAA = true;
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
 			D3D12::Reset_CommandList(D3D);
 			D3D12::WaitForGPU(D3D);
 
-			DXCompute.paramCBData.resetColorHistory = false;
+			DXCompute.paramCBData.disableTAA = false;
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
@@ -266,6 +261,9 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 		screenshotsLeftToTake--;
 
 		CORE_TRACE("Screenshots progress: {0}%", (int)(100.0f * (1.0f - (screenshotsLeftToTake / (float)totalScreenshots))));
+
+		if (screenshotsLeftToTake == 0 && Application::GetApplication().IsRecording)
+			Application::GetApplication().IsRecording = false;
 	}
 }
 

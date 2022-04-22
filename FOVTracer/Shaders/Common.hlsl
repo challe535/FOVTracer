@@ -1,6 +1,6 @@
 
 #define PI 3.141592653589793
-#define K 10
+#define K 3
 
 struct Node
 {
@@ -13,6 +13,7 @@ struct HitInfo
 {
     float4 ShadedColorAndHitT;
     Node node[K];
+    uint RecursionDepthRemaining;
 };
 
 struct ShadowHitInfo
@@ -37,9 +38,21 @@ cbuffer ViewCB : register(b0)
 struct MaterialCB
 {
 	float4 textureResolution;
+    
+    float3 AmbientColor;
     bool hasDiffuseTexture;
+    
+    float3 DiffuseColor;
     bool hasNormalMap;
+    
+    float3 SpecularColor;
     bool hasTransparency;
+    
+    float3 TransmitanceFilter;
+    float Shininess;
+    
+    float RefractIndex;
+    float TF;
 };
 
 ConstantBuffer<MaterialCB> material : register(b1);

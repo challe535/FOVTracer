@@ -12,6 +12,14 @@ struct Material
 	std::string NormalMapPath = "";
 	std::string OpacityMapPath = "";
 	Vector2f  TextureResolution = Vector2f(512, 512);
+
+	Vector3f AmbientColor;
+	Vector3f DiffuseColor;
+	Vector3f SpecularColor;
+	Vector3f TransmitanceFilter;
+	float Shininess = 1.0f;
+	float RefractIndex = 0.0f;
+	float TF = 0.0f;
 };
 
 struct Vertex

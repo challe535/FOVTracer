@@ -90,9 +90,21 @@ struct TextureInfo
 struct MaterialCB
 {
 	DirectX::XMFLOAT4 resolution;
+
+	DirectX::XMFLOAT3 AmbientColor;
 	uint32_t hasDiffuse;
+
+	DirectX::XMFLOAT3 DiffuseColor;
 	uint32_t hasNormal;
+
+	DirectX::XMFLOAT3 SpecularColor;
 	uint32_t hasTransparency;
+
+	DirectX::XMFLOAT3 TransmitanceFilter;
+	float Shininess = 1.0f;
+
+	float RefractIndex = 0.0f;
+	float TF = 0.0f;
 };
 
 struct ViewCB
@@ -144,7 +156,7 @@ struct ComputeParams
 	uint32_t isMotionView = 0;
 	uint32_t isDepthView = 0;
 	uint32_t isWorldPosView = 0;
-	uint32_t resetColorHistory = 0;
+	uint32_t disableTAA = 0;
 };
 
 struct ComputeProgram

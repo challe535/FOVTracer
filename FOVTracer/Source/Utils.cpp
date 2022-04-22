@@ -245,6 +245,29 @@ namespace Utils
 						Mat.OpacityMapPath = parent_folder + std::string(path.C_Str());
 					}
 
+					aiColor3D ColorResult;
+					if (aiReturn_SUCCESS == pMat->Get(AI_MATKEY_COLOR_AMBIENT, ColorResult))
+						Mat.AmbientColor = Vector3f(ColorResult.r, ColorResult.g, ColorResult.b);
+
+					if (aiReturn_SUCCESS == pMat->Get(AI_MATKEY_COLOR_DIFFUSE, ColorResult))
+						Mat.DiffuseColor = Vector3f(ColorResult.r, ColorResult.g, ColorResult.b);
+
+					if (aiReturn_SUCCESS == pMat->Get(AI_MATKEY_COLOR_SPECULAR, ColorResult))
+						Mat.SpecularColor = Vector3f(ColorResult.r, ColorResult.g, ColorResult.b);
+
+					if (aiReturn_SUCCESS == pMat->Get(AI_MATKEY_COLOR_TRANSPARENT, ColorResult))
+						Mat.TransmitanceFilter = Vector3f(ColorResult.r, ColorResult.g, ColorResult.b);
+
+					ai_real FloatResult;
+					if (aiReturn_SUCCESS == pMat->Get(AI_MATKEY_SHININESS, FloatResult))
+						Mat.Shininess = FloatResult;
+
+					if (aiReturn_SUCCESS == pMat->Get(AI_MATKEY_REFRACTI, FloatResult))
+						Mat.RefractIndex = FloatResult;
+
+					if (aiReturn_SUCCESS == pMat->Get(AI_MATKEY_TRANSPARENCYFACTOR, FloatResult))
+						Mat.TF = FloatResult;
+
 					SMesh.MeshMaterial = Mat;
 				}
 				else

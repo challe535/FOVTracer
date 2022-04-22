@@ -806,7 +806,7 @@ namespace D3DResources
 
 		// Describe the resource
 		D3D12_RESOURCE_DESC resourceDesc = {};
-		resourceDesc.Width = (textureInfo.width * textureInfo.height * textureInfo.stride);
+		resourceDesc.Width = textureInfo.height * textureInfo.width * textureInfo.stride;
 		resourceDesc.Height = 1;
 		resourceDesc.DepthOrArraySize = 1;
 		resourceDesc.MipLevels = 1;
@@ -842,7 +842,7 @@ namespace D3DResources
 		subresource.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		subresource.Width = texture.width;
 		subresource.Height = texture.height;
-		subresource.RowPitch = (texture.width * texture.stride);
+		subresource.RowPitch = ALIGN(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT, texture.width * texture.stride);
 		subresource.Depth = 1;
 
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
@@ -1087,16 +1087,28 @@ namespace D3DResources
 	*/
 	void Create_Material_CB(D3D12Global& d3d, D3D12Resources& resources, const Material& material, uint32_t index)
 	{
-		resources.sceneObjResources[index].materialCBData.resolution = DirectX::XMFLOAT4(material.TextureResolution.X, material.TextureResolution.Y, 0.f, 0.f);
-		resources.sceneObjResources[index].materialCBData.hasDiffuse = !material.TexturePath.empty() ? 1u : 0u;
-		//resources.sceneObjResources[index].materialCBData.hasDiffuse = 0u;
-		resources.sceneObjResources[index].materialCBData.hasNormal = !material.NormalMapPath.empty() ? 1u : 0u;
-		resources.sceneObjResources[index].materialCBData.hasTransparency = !material.OpacityMapPath.empty() ? 1u : 0u;
+		MaterialCB& mat = resources.sceneObjResources[index].materialCBData;
+
+		mat.resolution = DirectX::XMFLOAT4(material.TextureResolution.X, material.TextureResolution.Y, 0.f, 0.f);
+		mat.hasDiffuse = !material.TexturePath.empty() ? 1u : 0u;
+		//mat.hasDiffuse = 0u;
+		mat.hasNormal = !material.NormalMapPath.empty() ? 1u : 0u;
+		mat.hasTransparency = !material.OpacityMapPath.empty() ? 1u : 0u;
+
+		mat.AmbientColor = Vector3fToDXFloat3(material.AmbientColor);
+		mat.DiffuseColor = Vector3fToDXFloat3(material.DiffuseColor);
+		mat.SpecularColor = Vector3fToDXFloat3(material.SpecularColor);
+		mat.TransmitanceFilter = Vector3fToDXFloat3(material.TransmitanceFilter);
+		mat.Shininess = material.Shininess;
+		mat.TF = material.TF;
+		mat.RefractIndex = material.RefractIndex;
+
+		//CORE_INFO("DIFFUSE COLOR = {0}, {1}, {2}", mat.DiffuseColor.x, mat.DiffuseColor.y, mat.DiffuseColor.z);
 
 		Create_Constant_Buffer(d3d, &resources.sceneObjResources[index].materialCB, sizeof(MaterialCB));
-#if NAME_D3D_RESOURCES
-		resources.sceneObjResources[index].materialCB->SetName(L"Material Constant Buffer");
-#endif
+//#if NAME_D3D_RESOURCES
+//		resources.sceneObjResources[index].materialCB->SetName(L"Material Constant Buffer");
+//#endif
 		UINT8* pData;
 		HRESULT hr = resources.sceneObjResources[index].materialCB->Map(0, nullptr, reinterpret_cast<void**>(&pData));
 		Utils::Validate(hr, L"Error: failed to map Material constant buffer!");
@@ -1720,7 +1732,7 @@ namespace DXR
 
 		// Add a state subobject for the shader payload configuration
 		D3D12_RAYTRACING_SHADER_CONFIG shaderDesc = {};
-		shaderDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT4) + 10 * 5 * sizeof(float);
+		shaderDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT4) + 3 * 5 * sizeof(float) + sizeof(uint32_t);
 		shaderDesc.MaxAttributeSizeInBytes = D3D12_RAYTRACING_MAX_ATTRIBUTE_SIZE_IN_BYTES;
 
 		D3D12_STATE_SUBOBJECT shaderConfigObject = {};
@@ -1774,7 +1786,7 @@ namespace DXR
 
 		// Add a state subobject for the ray tracing pipeline config
 		D3D12_RAYTRACING_PIPELINE_CONFIG pipelineConfig = {};
-		pipelineConfig.MaxTraceRecursionDepth = 3;
+		pipelineConfig.MaxTraceRecursionDepth = 10;
 
 		D3D12_STATE_SUBOBJECT pipelineConfigObject = {};
 		pipelineConfigObject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;

@@ -35,12 +35,15 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 
 	Log::Init();
 
-	RayScene.LoadFromPath(Utils::GetResourcePath("sponza/sponza.obj"), false);
+	RayScene.LoadFromPath(Utils::GetResourcePath("cornell_box/CornellBox-Sphere.obj"), false);
+	//RayScene.LoadFromPath(Utils::GetResourcePath("sibenik/sibenik.obj"), false);
+	//RayScene.LoadFromPath(Utils::GetResourcePath("San_Miguel/san-miguel-low-poly.obj"), false);
+	//RayScene.LoadFromPath(Utils::GetResourcePath("sponza/sponza.obj"), false);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("misc/bunny.obj"), true);
 	CORE_INFO("{0} objects in scene.", RayScene.GetNumSceneObjects());
 
 	RayScene.SceneCamera.Orientation *= Quaternion(0.0f, DirectX::XM_PI/2.0f, 0.0f);
-	RayScene.SceneCamera.Position = Vector3f(0.0f, 175.0f, 0.0f);
+	RayScene.SceneCamera.Position = Vector3f(0.0f, 0.0f, 0.0f);
 	RayScene.SceneCamera.FOV = 75.0f;
 
 	//Initalize and configure tracer
@@ -81,8 +84,8 @@ void Application::Run()
 	float DeltaTime = 0.0f;
 	float FpsRunningAverage = 0.0f;
 
-	float ViewportRatio = 0.75f;
-	bool CustomRenderResolution = false;
+	float ViewportRatio = 0.555f;
+	bool CustomRenderResolution = true;
 	bool LMouseClicked = false;
 
 	float jitterStrength = 1.0f;
@@ -90,10 +93,14 @@ void Application::Run()
 	bool scrShotDisableDLSS = false;
 	bool scrShotDisableFOV = false;
 	bool swayCamera = false;
+	bool moveCamera = false;
 	float cameraSwaySpeed = 0.1f;
+	float cameraMoveSpeed = 0.1f;
+	float cameraMoveAmount = 0.1f;
 	uint32_t scrShotSqrtSamples = 6;
 	uint32_t nScrShot = 1;
 
+	float CameraSpeed = 5.0f;
 
 	float cameraInterpT = 0.0f;
 
@@ -121,43 +128,59 @@ void Application::Run()
 		ComputeParams.kernelAlpha = TraceParams.kernelAlpha;
 		//ComputeParams.resetColorHistory = false;
 
-		float CameraForwardMove = static_cast<float>(InputHandler->IsKeyDown(W_KEY) - InputHandler->IsKeyDown(S_KEY));
-		float CameraRightMove = static_cast<float>(InputHandler->IsKeyDown(D_KEY) - InputHandler->IsKeyDown(A_KEY));
-		float CameraUpMove = static_cast<float>(InputHandler->IsKeyDown(E_KEY) - InputHandler->IsKeyDown(Q_KEY));
-
-		float CameraSpeed = 200.0f;
-
-		Vector3f CameraMove = CameraForwardMove * SceneCamera.GetForward() + CameraRightMove * SceneCamera.GetRight() + CameraUpMove * SceneCamera.GetUpVector();
-
-		SceneCamera.Position = SceneCamera.Position + CameraMove * DeltaTime * CameraSpeed;
-
-		float MouseSensitivity = 0.001f;
-
-		float CameraRoll = static_cast<float>(InputHandler->IsKeyDown(Z_KEY) - InputHandler->IsKeyDown(X_KEY));
-		float RollSensitivity = 2;
-
-		if (InputHandler->IsKeyDown(VK_LBUTTON))
+		if (!IsRecording)
 		{
-			if (!LMouseClicked)
-			{
-				InputHandler->MouseDelta = Vector2f(0, 0);
-			}
-			Vector3f Rotation = Vector3f(MouseSensitivity * InputHandler->MouseDelta.Y, MouseSensitivity * InputHandler->MouseDelta.X, CameraRoll * RollSensitivity * DeltaTime);
-			SceneCamera.Orientation *= Quaternion(Rotation.X, Rotation.Y, Rotation.Z);
+			cameraInterpT = 0;
 
-			LMouseClicked = true;
+			float CameraForwardMove = static_cast<float>(InputHandler->IsKeyDown(W_KEY) - InputHandler->IsKeyDown(S_KEY));
+			float CameraRightMove = static_cast<float>(InputHandler->IsKeyDown(D_KEY) - InputHandler->IsKeyDown(A_KEY));
+			float CameraUpMove = static_cast<float>(InputHandler->IsKeyDown(E_KEY) - InputHandler->IsKeyDown(Q_KEY));
+
+			
+
+			Vector3f CameraMove = CameraForwardMove * SceneCamera.GetForward() + CameraRightMove * SceneCamera.GetRight() + CameraUpMove * SceneCamera.GetUpVector();
+
+			SceneCamera.Position = SceneCamera.Position + CameraMove * DeltaTime * CameraSpeed;
+
+			float MouseSensitivity = 0.001f;
+
+			float CameraRoll = static_cast<float>(InputHandler->IsKeyDown(Z_KEY) - InputHandler->IsKeyDown(X_KEY));
+			float RollSensitivity = 2;
+
+			if (InputHandler->IsKeyDown(VK_LBUTTON))
+			{
+				if (!LMouseClicked)
+				{
+					InputHandler->MouseDelta = Vector2f(0, 0);
+				}
+				Vector3f Rotation = Vector3f(MouseSensitivity * InputHandler->MouseDelta.Y, MouseSensitivity * InputHandler->MouseDelta.X, CameraRoll * RollSensitivity * DeltaTime);
+				SceneCamera.Orientation *= Quaternion(Rotation.X, Rotation.Y, Rotation.Z);
+
+				LMouseClicked = true;
+			}
+			else
+			{
+				LMouseClicked = false;
+			}
 		}
 		else
 		{
-			LMouseClicked = false;
+			cameraInterpT += 1;
+
+			if (swayCamera)
+			{
+				Vector3f Rotation = Vector3f(0, sin(cameraInterpT * cameraSwaySpeed), 0);
+				SceneCamera.Orientation = OriginalCamOrianetation * Quaternion(Rotation.X, Rotation.Y, Rotation.Z);
+			}
+
+			if (moveCamera)
+			{
+				Vector3f Movement = Vector3f(3 * sin(cameraInterpT * cameraMoveSpeed), 0, cos(cameraInterpT * cameraMoveSpeed));
+				SceneCamera.Position = SceneCamera.Position + Movement * cameraMoveAmount;
+			}
 		}
 
-		if (swayCamera)
-		{
-			cameraInterpT += /*DeltaTime **/ cameraSwaySpeed;
-			Vector3f Rotation = Vector3f(0, sin(cameraInterpT), 0);
-			SceneCamera.Orientation = OriginalCamOrianetation * Quaternion(Rotation.X, Rotation.Y, Rotation.Z);
-		}
+
 
 		RayTracer.Update(RayScene, TraceParams, ComputeParams, jitterStrength);
 
@@ -208,12 +231,16 @@ void Application::Run()
 			ImGui::Checkbox("Use custom downscale", &CustomRenderResolution);
 			ImGui::SliderFloat("Downscale amount", &ViewportRatio, 0.1f, 1.0f);
 			ImGui::SliderFloat("Jitter Strength", &jitterStrength, 0.0f, 1.5f);
+			ImGui::Checkbox("Disable TAA", reinterpret_cast<bool*>(&ComputeParams.disableTAA));
 
 			ImGui::Separator();
 			ImGui::Text("Gaussian Blur");
 			ImGui::SliderFloat("Blur Inner K", &ComputeParams.blurKInner, 0.0f, 40.0f);
 			ImGui::SliderFloat("Blur Outer K", &ComputeParams.blurKOuter, 0.0f, 20.0f);
 			ImGui::SliderFloat("Blur A", &ComputeParams.blurA, 0.0f, 1.0f);
+
+			ImGui::Separator();
+			ImGui::SliderFloat("Camera control speed", &CameraSpeed, 0.0f, 300.0f);
 
 			ImGui::Separator();
 			ImGui::Text("Screenshot reference parameters");
@@ -223,6 +250,9 @@ void Application::Run()
 			ImGui::Checkbox("Disable Foveation", &scrShotDisableFOV);
 			ImGui::Checkbox("Sway camera", &swayCamera);
 			ImGui::SliderFloat("Sway speed", &cameraSwaySpeed, 0.f, 2.0f);
+			ImGui::Checkbox("Move camera", &moveCamera);
+			ImGui::SliderFloat("Move speed", &cameraMoveSpeed, 0.f, 2.0f);
+			ImGui::SliderFloat("Move amount", &cameraMoveAmount, 0.f, 100.0f);
 		}
 		ImGui::End();
 
