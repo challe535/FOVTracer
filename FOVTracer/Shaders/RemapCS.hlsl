@@ -19,6 +19,7 @@ cbuffer ParamsCB : register(b0)
     bool isWorldPosView;
     
     bool disableTAA;
+    bool usingDLSS;
 }
 
 RWTexture2D<float4> InColorBuffer   : register(u0);
@@ -208,8 +209,15 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     
     float2 historyIndex = DTid.xy + 0.5 + motion;
     
+    float alpha = 0.15;
+    
+    float normFovealDist = length(relativePoint) / maxCornerDist;
+    bool shouldAdjustTAAForFOV = usingDLSS && isFoveatedRenderingEnabled;
+    float TAAThreshold = 0.2;
+    float TAAOffsetFOV = pow(max(((1 - alpha) / TAAThreshold) * (TAAThreshold - normFovealDist), 0.0), 2) * (shouldAdjustTAAForFOV ? 1 : 0);
+    
     if (historyIndex.x >= resolution.x || historyIndex.x < 0 || historyIndex.y >= resolution.y || historyIndex.y < 0 || disableTAA)
         OutColorBuffer[DTid.xy] = float4(finalColor, 1.0f);
     else
-        OutColorBuffer[DTid.xy] = float4(finalColor * 0.2 + InColorBuffer1[historyIndex].rgb * 0.8, 1.0f);
+        OutColorBuffer[DTid.xy] = float4(finalColor * (alpha + TAAOffsetFOV) + InColorBuffer1[historyIndex].rgb * (1 - alpha - TAAOffsetFOV), 1.0f);
 }

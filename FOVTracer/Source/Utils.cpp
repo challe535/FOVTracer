@@ -265,9 +265,6 @@ namespace Utils
 					if (aiReturn_SUCCESS == pMat->Get(AI_MATKEY_REFRACTI, FloatResult))
 						Mat.RefractIndex = FloatResult;
 
-					if (aiReturn_SUCCESS == pMat->Get(AI_MATKEY_TRANSPARENCYFACTOR, FloatResult))
-						Mat.TF = FloatResult;
-
 					SMesh.MeshMaterial = Mat;
 				}
 				else

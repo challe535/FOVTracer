@@ -1100,10 +1100,9 @@ namespace D3DResources
 		mat.SpecularColor = Vector3fToDXFloat3(material.SpecularColor);
 		mat.TransmitanceFilter = Vector3fToDXFloat3(material.TransmitanceFilter);
 		mat.Shininess = material.Shininess;
-		mat.TF = material.TF;
 		mat.RefractIndex = material.RefractIndex;
 
-		//CORE_INFO("DIFFUSE COLOR = {0}, {1}, {2}", mat.DiffuseColor.x, mat.DiffuseColor.y, mat.DiffuseColor.z);
+		//CORE_INFO("Transmittance filter = {0}, {1}, {2}", mat.TransmitanceFilter.x, mat.TransmitanceFilter.y, mat.TransmitanceFilter.z);
 
 		Create_Constant_Buffer(d3d, &resources.sceneObjResources[index].materialCB, sizeof(MaterialCB));
 //#if NAME_D3D_RESOURCES
@@ -1314,7 +1313,7 @@ namespace DXR
 
 			geometryDescs.push_back(geometryDesc);
 		}
-		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS buildFlags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS buildFlags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION;
 
 		// Get the size requirements for the BLAS buffers
 		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS ASInputs = {};
@@ -1362,6 +1361,11 @@ namespace DXR
 		uavBarrier.UAV.pResource = dxr.BLAS.pResult;
 		uavBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 		d3d.CmdList->ResourceBarrier(1, &uavBarrier);
+
+		D3DResources::Create_Buffer(d3d, bufferInfo, &dxr.BLAS.pCompactResult);
+		d3d.CmdList->CopyRaytracingAccelerationStructure(dxr.BLAS.pCompactResult->GetGPUVirtualAddress(), dxr.BLAS.pResult->GetGPUVirtualAddress(), D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_COMPACT);
+
+		d3d.CmdList->ResourceBarrier(1, &uavBarrier);
 	}
 
 	/**
@@ -1375,7 +1379,7 @@ namespace DXR
 		instanceDesc.InstanceContributionToHitGroupIndex = 0;
 		instanceDesc.InstanceMask = 0xFF;
 		instanceDesc.Transform[0][0] = instanceDesc.Transform[1][1] = instanceDesc.Transform[2][2] = 1;
-		instanceDesc.AccelerationStructure = dxr.BLAS.pResult->GetGPUVirtualAddress();
+		instanceDesc.AccelerationStructure = dxr.BLAS.pCompactResult->GetGPUVirtualAddress();
 		instanceDesc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_FRONT_COUNTERCLOCKWISE;
 
 		// Create the TLAS instance buffer
@@ -1732,7 +1736,7 @@ namespace DXR
 
 		// Add a state subobject for the shader payload configuration
 		D3D12_RAYTRACING_SHADER_CONFIG shaderDesc = {};
-		shaderDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT4) + 3 * 5 * sizeof(float) + sizeof(uint32_t);
+		shaderDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT4) + 1 * 5 * sizeof(float) + sizeof(uint32_t);
 		shaderDesc.MaxAttributeSizeInBytes = D3D12_RAYTRACING_MAX_ATTRIBUTE_SIZE_IN_BYTES;
 
 		D3D12_STATE_SUBOBJECT shaderConfigObject = {};
@@ -1786,7 +1790,7 @@ namespace DXR
 
 		// Add a state subobject for the ray tracing pipeline config
 		D3D12_RAYTRACING_PIPELINE_CONFIG pipelineConfig = {};
-		pipelineConfig.MaxTraceRecursionDepth = 10;
+		pipelineConfig.MaxTraceRecursionDepth = 6;
 
 		D3D12_STATE_SUBOBJECT pipelineConfigObject = {};
 		pipelineConfigObject.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;
@@ -1921,7 +1925,7 @@ namespace DXR
 	//	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 	//	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 
-	//	d3d.Device->CreateUnorderedAccessView(resources.DXROutput, nullptr, &uavDesc, handle);
+	//	d3d.Device->CreateUnorderedAccessView(resources.DXROutput[1], nullptr, &uavDesc, handle);
 	//}     
 
 	/**
@@ -2142,7 +2146,7 @@ namespace DXR
 	/**
 	* Builds the frame's DXR command list.
 	*/
-	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested, bool dlssPreScrshot)
+	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested, bool dlssPreScrshot, bool clearTAA)
 	{
 		D3D12_RESOURCE_BARRIER OutputBarriers[2] = {};
 		D3D12_RESOURCE_BARRIER CounterBarriers[2] = {};
@@ -2185,15 +2189,6 @@ namespace DXR
 
 		ID3D12DescriptorHeap* ppHeaps[1] = {resources.descriptorHeap};
 		d3d.CmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-
-		//auto gpuHandle = resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();
-		//auto cpuHandle = resources.cpuOnlyHeap->GetCPUDescriptorHandleForHeapStart();
-
-		//gpuHandle.ptr += 2 * d3d.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		
-		////Dont clear if using stochastic sampling method
-		//const float ClearColor[4] = { 0, 0, 0, 0 };
-		//d3d.CmdList->ClearUnorderedAccessViewFloat(gpuHandle, cpuHandle, resources.DXROutput, ClearColor, 0, NULL);
 
 		// Dispatch rays
 		D3D12_DISPATCH_RAYS_DESC desc = {};
@@ -2256,6 +2251,18 @@ namespace DXR
 		TAABarriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 
 		d3d.CmdList->ResourceBarrier(2, TAABarriers);
+
+		//if (clearTAA)
+		//{
+		//	auto gpuHandle = resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+		//	auto cpuHandle = resources.cpuOnlyHeap->GetCPUDescriptorHandleForHeapStart();
+
+		//	gpuHandle.ptr += 4 * d3d.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		//	//Dont clear if using stochastic sampling method
+		//	const float ClearColor[4] = { 0, 0, 0, 0 };
+		//	d3d.CmdList->ClearUnorderedAccessViewFloat(gpuHandle, cpuHandle, resources.DXROutput[1], ClearColor, 0, NULL);
+		//}
 
 		//Start DLSS time
 		d3d.CmdList->EndQuery(resources.queryHeap, D3D12_QUERY_TYPE_TIMESTAMP, 2);

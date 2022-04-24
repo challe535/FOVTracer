@@ -1,12 +1,12 @@
 
 #define PI 3.141592653589793
-#define K 3
+#define K 1
 
 struct Node
 {
+    float3 color;
     float depth;
     float transmit;
-    float3 color;
 };
 
 struct HitInfo
@@ -52,7 +52,6 @@ struct MaterialCB
     float Shininess;
     
     float RefractIndex;
-    float TF;
 };
 
 ConstantBuffer<MaterialCB> material : register(b1);
@@ -66,7 +65,11 @@ struct TraceParamsCB
     float kernelAlpha;
     float viewportRatio;
     bool isDLSSEnabled;
-    uint outBufferIndex;
+
+    uint recursionDepth;
+    bool useIndirectIllum;
+    float rayTMax;
+    bool flipNormals;
 };
 
 ConstantBuffer<TraceParamsCB> params : register(b2);

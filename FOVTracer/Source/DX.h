@@ -72,10 +72,14 @@ struct TracerParameters
 	uint32_t sqrtSamplesPerPixel = 1;
 	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(.5f, .5f);
 	uint32_t isFoveatedRenderingEnabled = 0;
-	float kernelAlpha = 1.0f;
+	float kernelAlpha = 3.0f;
 	float viewportRatio = 1.0f;
 	uint32_t isDLSSEnabled = 0;
-	uint32_t outBufferIndex = 0;
+
+	uint32_t recursionDepth = 1;
+	uint32_t useIndirectIllum = 0;
+	float rayTMax = 5000;
+	uint32_t flipNormals = 0;
 };
 
 struct TextureInfo
@@ -104,7 +108,6 @@ struct MaterialCB
 	float Shininess = 1.0f;
 
 	float RefractIndex = 0.0f;
-	float TF = 0.0f;
 };
 
 struct ViewCB
@@ -146,7 +149,7 @@ struct ComputeParams
 {
 	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(.5f, .5f);
 	uint32_t isFoveatedRenderingEnabled = 0;
-	float kernelAlpha = 1.0f;
+	float kernelAlpha = 3.0f;
 	DirectX::XMFLOAT2 resoltion = DirectX::XMFLOAT2(1920, 1080);
 	DirectX::XMFLOAT2 jitterOffset = DirectX::XMFLOAT2(0, 0);
 	float blurKInner = 30.0f;
@@ -157,6 +160,7 @@ struct ComputeParams
 	uint32_t isDepthView = 0;
 	uint32_t isWorldPosView = 0;
 	uint32_t disableTAA = 0;
+	uint32_t usingDLSS = 0;
 };
 
 struct ComputeProgram
@@ -285,7 +289,7 @@ struct D3D12Resources
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
 	ID3D12DescriptorHeap* descriptorHeap = nullptr;
 	ID3D12DescriptorHeap* uiHeap = nullptr;
-	//ID3D12DescriptorHeap* cpuOnlyHeap = nullptr;
+	ID3D12DescriptorHeap* cpuOnlyHeap = nullptr;
 	ID3D12QueryHeap* queryHeap = nullptr;
 
 	UINT											rtvDescSize = 0;
@@ -319,6 +323,7 @@ struct AccelerationStructureBuffer
 {
 	ID3D12Resource* pScratch = nullptr;
 	ID3D12Resource* pResult = nullptr;
+	ID3D12Resource* pCompactResult = nullptr;
 	ID3D12Resource* pInstanceDesc = nullptr;	// only used in top-level AS
 };
 
@@ -500,7 +505,7 @@ namespace DXR
 	void Add_Alpha_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Add_Shadow_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 
-	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested, bool dlssPreScrshot);
+	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested, bool dlssPreScrshot, bool clearTAA);
 
 	void Destroy(DXRGlobal& dxr);
 }

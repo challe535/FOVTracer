@@ -88,14 +88,13 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 		DLSSConfigInfo.JitterOffset.Y = 0;
 	}
 
-	params.outBufferIndex = Application::GetApplication().FrameCount % NUM_HISTORY_BUFFER;
-
 	params.viewportRatio = 1920  / D3D.Width;
 	params.isDLSSEnabled = DLSSConfigInfo.ShouldUseDLSS;
 
 	//cParams.currentBufferIndex = params.outBufferIndex;
 	cParams.resoltion = DirectX::XMFLOAT2(D3D.Width, D3D.Height);
 	cParams.jitterOffset = DirectX::XMFLOAT2(DLSSConfigInfo.JitterOffset.X, DLSSConfigInfo.JitterOffset.Y);
+	cParams.usingDLSS = params.isDLSSEnabled;
 
 	Vector2f displayRes(TargetRes.Width, TargetRes.Height);
 
@@ -115,11 +114,13 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 		disableFOVForScreenShot = disableFOV;
 
 		Application::GetApplication().IsRecording = true;
+
+		CORE_WARN("===STARTING NEW CAPTURE===");
 	}
 
 	bool isTakingScreenshotThisFrame = screenshotsLeftToTake > 0;
 
-	DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, isTakingScreenshotThisFrame, DLSSConfigInfo.ShouldUseDLSS);
+	DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, isTakingScreenshotThisFrame, DLSSConfigInfo.ShouldUseDLSS, false);
 	D3D12::Present(D3D);
 	D3D12::MoveToNextFrame(D3D);
 	D3D12::Reset_CommandList(D3D);
@@ -137,30 +138,6 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 
 	if (isTakingScreenshotThisFrame)
 	{
-
-		if (!DXCompute.paramCBData.disableTAA)
-		{
-			DXCompute.paramCBData.disableTAA = true;
-			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
-			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
-			D3D12::Reset_CommandList(D3D);
-			D3D12::WaitForGPU(D3D);
-
-			DXCompute.paramCBData.disableTAA = false;
-			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
-		}
-
-		for (int i = 0; i < 4; i++)
-		{
-			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
-			D3D12::Reset_CommandList(D3D);
-			D3D12::WaitForGPU(D3D);
-		}
-
-		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, isTakingScreenshotThisFrame, DLSSConfigInfo.ShouldUseDLSS);
-		D3D12::Reset_CommandList(D3D);
-		D3D12::WaitForGPU(D3D);
-
 		auto test = DumpFrameToFile("scrshot");
 
 		uint32_t currentSpp = Resources.paramCBData.sqrtSamplesPerPixel;
@@ -178,9 +155,12 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			D3D.Width = TargetRes.Width;
 			D3D.Height = TargetRes.Height;
 
-			ComputeParams cparam = DXCompute.paramCBData;
-			cparam.resoltion = DirectX::XMFLOAT2(D3D.Width, D3D.Height);
-			D3D12::Update_Compute_Params(DXCompute, cparam);
+			DXCompute.paramCBData.usingDLSS = false;
+			DXCompute.paramCBData.resoltion = DirectX::XMFLOAT2(D3D.Width, D3D.Height);
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+
+			Resources.paramCBData.isDLSSEnabled = false;
+			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
 		}
 
 		bool PrevFOVRendering = Resources.paramCBData.isFoveatedRenderingEnabled && disableFOVForScreenShot;
@@ -194,28 +174,18 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
-		if (!DXCompute.paramCBData.disableTAA || PrevDLSS || PrevFOVRendering)
+		bool NeedsToDisableTAA = !DXCompute.paramCBData.disableTAA || PrevDLSS || PrevFOVRendering;
+		if (NeedsToDisableTAA)
 		{
 			DXCompute.paramCBData.disableTAA = true;
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
-			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
-			D3D12::Reset_CommandList(D3D);
-			D3D12::WaitForGPU(D3D);
-
-			DXCompute.paramCBData.disableTAA = false;
-			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
-		for (int i = 0; i < 5; i++)
-		{
-			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
-			D3D12::Reset_CommandList(D3D);
-			D3D12::WaitForGPU(D3D);
-		}
-
-		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, isTakingScreenshotThisFrame, PrevDLSS);
+		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, isTakingScreenshotThisFrame, PrevDLSS, false);
 		D3D12::Reset_CommandList(D3D);
 		D3D12::WaitForGPU(D3D);
+
+		auto ref = DumpFrameToFile("scrshot_gt");
 
 		D3DResources::Update_SPP(Resources, currentSpp);
 
@@ -225,6 +195,13 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 
 			D3D.Width = PrevWidth;
 			D3D.Height = PrevHeight;
+
+			DXCompute.paramCBData.usingDLSS = true;
+			DXCompute.paramCBData.resoltion = DirectX::XMFLOAT2(D3D.Width, D3D.Height);
+			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+
+			Resources.paramCBData.isDLSSEnabled = true;
+			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
 		}
 
 		if (PrevFOVRendering)
@@ -237,19 +214,18 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
-		if (!DXCompute.paramCBData.disableTAA || PrevDLSS || PrevFOVRendering)
-		{
-			DXCompute.paramCBData.disableTAA = true;
-			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
-			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false);
-			D3D12::Reset_CommandList(D3D);
-			D3D12::WaitForGPU(D3D);
 
+		//Flush TAA history sufficiently to avoid the motion vector transition error when capturing in sequence
+		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false, false);
+		D3D12::Reset_CommandList(D3D);
+		D3D12::WaitForGPU(D3D);
+
+		//Renable TAA if it was disabled earlier
+		if (NeedsToDisableTAA)
+		{
 			DXCompute.paramCBData.disableTAA = false;
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
-
-		auto ref = DumpFrameToFile("scrshot_gt");
 
 		std::string cmdLine("../FLIP/flip-cuda.exe --reference ");
 		cmdLine.append(ref).append(" --test ").append(test).append(" -d ../ImageDumps/FLIP/");
@@ -264,6 +240,7 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 
 		if (screenshotsLeftToTake == 0 && Application::GetApplication().IsRecording)
 			Application::GetApplication().IsRecording = false;
+
 	}
 }
 
@@ -390,8 +367,6 @@ void Tracer::SetResolution(const char* ResolutionName, bool IsDLSSEnabled, float
 			RenderRes = TargetRes;
 			RenderRes.Width *= viewportRatio;
 			RenderRes.Height *= viewportRatio;
-
-			CORE_WARN("{0}, {1}", RenderRes.Width, RenderRes.Height);
 		}
 		
 		if(DLSSConfigInfo.DLSSFeature) NVSDK_NGX_D3D12_ReleaseFeature(DLSSConfigInfo.DLSSFeature);

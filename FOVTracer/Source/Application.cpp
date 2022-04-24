@@ -35,10 +35,10 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 
 	Log::Init();
 
-	RayScene.LoadFromPath(Utils::GetResourcePath("cornell_box/CornellBox-Sphere.obj"), false);
-	//RayScene.LoadFromPath(Utils::GetResourcePath("sibenik/sibenik.obj"), false);
+	//RayScene.LoadFromPath(Utils::GetResourcePath("cornell_box/CornellBox-Sphere.obj"), false);
+	//RayScene.LoadFromPath(Utils::GetResourcePath("sibenik/sibenik.obj"), true);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("San_Miguel/san-miguel-low-poly.obj"), false);
-	//RayScene.LoadFromPath(Utils::GetResourcePath("sponza/sponza.obj"), false);
+	RayScene.LoadFromPath(Utils::GetResourcePath("sponza/sponza.obj"), false);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("misc/bunny.obj"), true);
 	CORE_INFO("{0} objects in scene.", RayScene.GetNumSceneObjects());
 
@@ -100,7 +100,9 @@ void Application::Run()
 	uint32_t scrShotSqrtSamples = 6;
 	uint32_t nScrShot = 1;
 
-	float CameraSpeed = 5.0f;
+	float CameraSpeed = 100.0f;
+	bool SetRotationFromUI = false;
+	Vector3f CameraEulerRotation;
 
 	float cameraInterpT = 0.0f;
 
@@ -180,7 +182,11 @@ void Application::Run()
 			}
 		}
 
-
+		if (SetRotationFromUI)
+		{
+			Vector3f Orientation = CameraEulerRotation * (DirectX::XM_2PI / 360.f);
+			SceneCamera.Orientation = Quaternion(Orientation.X, Orientation.Y, Orientation.Z);
+		}
 
 		RayTracer.Update(RayScene, TraceParams, ComputeParams, jitterStrength);
 
@@ -197,6 +203,10 @@ void Application::Run()
 			ImGui::Text("Raytracing time: %.3f ms", RaytraceTimeMS);
 			ImGui::Text("DLSS time: %.3f ms", DLSSTimeMS);
 			ImGui::SliderInt("Sqrt spp", reinterpret_cast<int*>(&TraceParams.sqrtSamplesPerPixel), 0, 10);
+			ImGui::SliderInt("Recursion depth", reinterpret_cast<int*>(&TraceParams.recursionDepth), 1, 4);
+			ImGui::Checkbox("Indirect illumination (Expensive!)", reinterpret_cast<bool*>(&TraceParams.useIndirectIllum));
+			ImGui::Checkbox("Flip normals", reinterpret_cast<bool*>(&TraceParams.flipNormals));
+			ImGui::SliderFloat("Ray T max", &TraceParams.rayTMax, 0.0f, 10000.0f);
 			const char* items[] = { "1920x1080", "1280x720" };
 			static const char* current_item = "1920x1080";
 
@@ -220,7 +230,7 @@ void Application::Run()
 			ImGui::Separator();
 			ImGui::Checkbox("Use foveated rendering", reinterpret_cast<bool*>(&TraceParams.isFoveatedRenderingEnabled));
 			ImGui::SliderFloat2("Foveal point", reinterpret_cast<float*>(&TraceParams.fovealCenter), 0.f, 1.f);
-			ImGui::SliderFloat("Kernel Alpha", &TraceParams.kernelAlpha, 0.5f, 6.0f);
+			ImGui::SliderFloat("Kernel Alpha", &TraceParams.kernelAlpha, 0.f, 6.0f);
 			ImGui::Checkbox("Vsync", &RayTracer.D3D.Vsync);
 			ImGui::Checkbox("Motion View", reinterpret_cast<bool*>(&ComputeParams.isMotionView));
 			ImGui::Checkbox("Depth View", reinterpret_cast<bool*>(&ComputeParams.isDepthView));
@@ -240,7 +250,11 @@ void Application::Run()
 			ImGui::SliderFloat("Blur A", &ComputeParams.blurA, 0.0f, 1.0f);
 
 			ImGui::Separator();
+			ImGui::Text("Scene controls");
+			ImGui::Checkbox("Manual camera rotation", &SetRotationFromUI);
 			ImGui::SliderFloat("Camera control speed", &CameraSpeed, 0.0f, 300.0f);
+			ImGui::SliderFloat3("Camera position", reinterpret_cast<float*>(&SceneCamera.Position), -10000.f, 10000.f);
+			ImGui::SliderFloat3("Camera rotation", reinterpret_cast<float*>(&CameraEulerRotation), 0.f, 360.f);
 
 			ImGui::Separator();
 			ImGui::Text("Screenshot reference parameters");

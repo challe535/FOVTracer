@@ -19,7 +19,6 @@ struct Material
 	Vector3f TransmitanceFilter;
 	float Shininess = 1.0f;
 	float RefractIndex = 0.0f;
-	float TF = 0.0f;
 };
 
 struct Vertex

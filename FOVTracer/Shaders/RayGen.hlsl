@@ -68,7 +68,7 @@ void RayGen()
     float offsetX = stepSize;
     float offsetY = stepSize;
 
-    float2 jitter = jitterOffset /** (params.isFoveatedRenderingEnabled ? 0 : 1)*/;
+    float2 jitter = jitterOffset * (params.isFoveatedRenderingEnabled ? 0 : 1);
 
     for (int i = 0; i < params.sqrtSamplesPerPixel; i++)
     {
@@ -86,12 +86,12 @@ void RayGen()
             ray.Origin = viewOriginAndTanHalfFovY.xyz;
             ray.Direction = jitterDir;
             ray.TMin = 0.01f;
-            ray.TMax = 100000.f;
+            ray.TMax = params.rayTMax;
 
 	        // Trace the ray
             HitInfo payload;
             payload.ShadedColorAndHitT = float4(0.f, 0.f, 0.f, 0.f);
-            payload.RecursionDepthRemaining = 3;
+            payload.RecursionDepthRemaining = params.recursionDepth;
 
             Node n;
             n.depth = ray.TMax * 2;
@@ -128,7 +128,7 @@ void RayGen()
     finalColor *= avgFactor;
     finalWorldPosAndDepth *= avgFactor;
 
-    finalWorldPosAndDepth.a = clamp(finalWorldPosAndDepth.a * 0.0005, 0, 1);
+    finalWorldPosAndDepth.a = clamp(finalWorldPosAndDepth.a / params.rayTMax, 0, 1);
 
 
     RTOutput[LaunchIndex.xy] = float4(finalColor, 1.0f);

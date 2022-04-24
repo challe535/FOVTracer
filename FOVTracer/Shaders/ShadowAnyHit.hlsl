@@ -18,5 +18,4 @@ void ShadowAnyHit(inout ShadowHitInfo hit, Attributes attrib)
     //}
     
     //AcceptHitAndEndSearch();
-    //IgnoreHit();
 }
