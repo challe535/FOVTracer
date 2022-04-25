@@ -157,10 +157,8 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 
 			DXCompute.paramCBData.usingDLSS = false;
 			DXCompute.paramCBData.resoltion = DirectX::XMFLOAT2(D3D.Width, D3D.Height);
-			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 
 			Resources.paramCBData.isDLSSEnabled = false;
-			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
 		}
 
 		bool PrevFOVRendering = Resources.paramCBData.isFoveatedRenderingEnabled && disableFOVForScreenShot;
@@ -168,18 +166,20 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 		{
 			//Turn off foveated rendering temporarily
 			Resources.paramCBData.isFoveatedRenderingEnabled = false;
-			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
-
 			DXCompute.paramCBData.isFoveatedRenderingEnabled = false;
-			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
 		bool NeedsToDisableTAA = !DXCompute.paramCBData.disableTAA || PrevDLSS || PrevFOVRendering;
 		if (NeedsToDisableTAA)
 		{
 			DXCompute.paramCBData.disableTAA = true;
-			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
+
+		Resources.paramCBData.takingReferenceScreenshot = true;
+		DXCompute.paramCBData.takingReferenceScreenshot = true;
+
+		D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
+		D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 
 		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, isTakingScreenshotThisFrame, PrevDLSS, false);
 		D3D12::Reset_CommandList(D3D);
@@ -198,22 +198,22 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 
 			DXCompute.paramCBData.usingDLSS = true;
 			DXCompute.paramCBData.resoltion = DirectX::XMFLOAT2(D3D.Width, D3D.Height);
-			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 
 			Resources.paramCBData.isDLSSEnabled = true;
-			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
 		}
 
+		//Turn foveated rendering back on
 		if (PrevFOVRendering)
 		{
-			//Turn off foveated rendering temporarily
 			Resources.paramCBData.isFoveatedRenderingEnabled = true;
-			D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
-
 			DXCompute.paramCBData.isFoveatedRenderingEnabled = true;
-			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
+		Resources.paramCBData.takingReferenceScreenshot = false;
+		DXCompute.paramCBData.takingReferenceScreenshot = false;
+
+		D3DResources::Update_Params_CB(Resources, Resources.paramCBData);
+		D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 
 		//Flush TAA history sufficiently to avoid the motion vector transition error when capturing in sequence
 		DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false, false);
@@ -225,6 +225,14 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 		{
 			DXCompute.paramCBData.disableTAA = false;
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
+		}
+
+		//Get TAA back up and running after reset for next frame screenshot
+		for (int i = 0; i < 10; i++)
+		{
+			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false, false);
+			D3D12::Reset_CommandList(D3D);
+			D3D12::WaitForGPU(D3D);
 		}
 
 		std::string cmdLine("../FLIP/flip-cuda.exe --reference ");

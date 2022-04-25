@@ -20,6 +20,7 @@ cbuffer ParamsCB : register(b0)
     
     bool disableTAA;
     bool usingDLSS;
+    bool takingReferenceScreenshot;
 }
 
 RWTexture2D<float4> InColorBuffer   : register(u0);
@@ -142,7 +143,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
 
     if (isFoveatedRenderingEnabled)
     {
-        //LaunchIndex += jitterOffset;
+        //LaunchIndex += jitterOffset * (takingReferenceScreenshot ? 0 : 1);
         
         float2 fovealPoint = fovealCenter * resolution;
 

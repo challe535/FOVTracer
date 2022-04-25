@@ -70,6 +70,7 @@ struct TraceParamsCB
     bool useIndirectIllum;
     float rayTMax;
     bool flipNormals;
+    bool takingReferenceScreenshot;
 };
 
 ConstantBuffer<TraceParamsCB> params : register(b2);

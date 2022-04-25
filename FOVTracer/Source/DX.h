@@ -80,6 +80,7 @@ struct TracerParameters
 	uint32_t useIndirectIllum = 0;
 	float rayTMax = 5000;
 	uint32_t flipNormals = 0;
+	uint32_t takingReferenceScreenshot = 0;
 };
 
 struct TextureInfo
@@ -161,6 +162,7 @@ struct ComputeParams
 	uint32_t isWorldPosView = 0;
 	uint32_t disableTAA = 0;
 	uint32_t usingDLSS = 0;
+	uint32_t takingReferenceScreenshot = 0;
 };
 
 struct ComputeProgram

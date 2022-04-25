@@ -1,16 +1,66 @@
 #include "Common.hlsl"
 #include "KernelFov.hlsl"
 
-struct PointLightInfo
+struct OrbLightInfo
 {
     float3 position;
     float3 color;
     float luminocity;
+    float radius;
 };
 
 float Rand(float2 seed)
 {
     return frac(sin(dot(seed, float2(12.9898, 78.233))) * 43758.5453);
+}
+
+float3x3 angleAxis3x3(float angle, float3 axis)
+{
+    float3x3 I =
+    {
+        1, 0, 0,
+        0, 1, 0,
+        0, 0, 1
+    };
+    
+    float3x3 Ux =
+    {
+        0, -axis.z, axis.y,
+        axis.z, 0, -axis.x,
+        -axis.y, axis.x, 0
+    };
+    
+    float3x3 UxU =
+    {
+        pow(axis.x, 2), axis.x * axis.y, axis.x * axis.z,
+        axis.x * axis.y, pow(axis.y, 2), axis.y * axis.z,
+        axis.x * axis.z, axis.y * axis.z, pow(axis.z, 2)
+    };
+   
+    return I * cos(angle) + Ux * sin(angle) + UxU * (1 - cos(angle));
+}
+
+float3 getConeSample(OrbLightInfo light, float3 origin, out float distToLightEdge)
+{
+    float3 lightV = light.position - origin;
+    float3 toLight = normalize(lightV);
+    
+    float2 seed2D = float2(dot(lightV, float3(39.3895, 86.9384, 59.2956)), params.elapsedTimeSeconds % 3);
+    float r = Rand(seed2D) * light.radius;
+    float phi = Rand(seed2D.yx) * 2.0f * PI;
+    
+    // Calculate a vector perpendicular to L
+    float3 perpL = cross(toLight, float3(0.f, 1.0f, 0.f));
+    // Handle case where L = up -> perpL should then be (1,0,0)
+    if (all(perpL == 0.0f))
+    {
+        perpL.x = 1.0;
+    }
+    
+    float3 offset = mul(angleAxis3x3(phi, toLight), perpL);
+    float3 shadowVector = light.position + perpL * r - origin;
+    distToLightEdge = length(shadowVector);
+    return normalize(shadowVector);
 }
 
 float3 RandOnUnitSphere(float4 seed)
@@ -116,26 +166,23 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
         vertex.normal = -vertex.normal;
     
     // --- Light ---
-    PointLightInfo plInfo;
+    OrbLightInfo plInfo;
 
     plInfo.position = float3(-200, 700, 0);
     plInfo.color = float3(1, 1, 1.0);
     plInfo.luminocity = 500000;
+    plInfo.radius = 30;
     //plInfo.luminocity = 2.5;
-    
+
     float3 viewDirection = normalize(WorldRayOrigin() - vertex.position);
 
     float3 worldOriginOffsetOut = WorldRayOrigin() + RayTCurrent() * WorldRayDirection() + vertex.normal * 0.01f;
     float3 worldOriginOffsetIn = WorldRayOrigin() + RayTCurrent() * WorldRayDirection() - vertex.normal * 0.01f;
-    float3 lightV = plInfo.position - worldOriginOffsetOut;
-    float3 lightDir = normalize(lightV);
-    float distToLight = length(lightV);
-
-    //lightDir = normalize(float3(1, 0, 0));
-    //distToLight = params.rayTMax;
     
     //Shadow calc
-    bool shadowed = /*payload.RecursionDepthRemaining == params.recursionDepth ? */IsShadowed(lightDir, worldOriginOffsetOut, distToLight, vertex.normal) /* : false*/;
+    float distToLight = params.rayTMax;
+    float3 lightDir = getConeSample(plInfo, worldOriginOffsetOut, distToLight);
+    bool shadowed = IsShadowed(lightDir, worldOriginOffsetOut, distToLight, vertex.normal);
     float3 lightColor = plInfo.color * plInfo.luminocity / pow(distToLight, 2);
     
     //Texture LOD
@@ -165,7 +212,7 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     }
 
     
-    float3 color = material.AmbientColor * 0.05;
+    float3 color = /*material.AmbientColor * 0.05*/0;
 
     float effectThreshold = 0.25;
     float effectMargin = 0.1;
@@ -176,7 +223,7 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     
     if (shadowed)
     {
-        color *= diffuse;
+        color = diffuse * material.AmbientColor * 0.1;
     }
     else
     {
@@ -184,8 +231,15 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
         color += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, vertex.normal)), viewDirection), 0.0), material.Shininess);
     }
     
-    //float reflectivity = (material.SpecularColor.r + material.SpecularColor.g + material.SpecularColor.b) / 3.0;
-    float reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
+    //There doesn't seem to be any clear cut way to determine reflectivity so adjust on a scene by scene basis.
+    float reflectivity = 0;
+    //if (any(material.TransmitanceFilter < 0.999))
+    //    reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
+    //else
+    //    reflectivity = (material.SpecularColor.r + material.SpecularColor.g + material.SpecularColor.b) / 3.0;
+
+    reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
+    
     if (reflectivity > 0 && payload.RecursionDepthRemaining > 0 && normedDist < effectThreshold)
     {
         float3 reflectDirection = normalize(reflect(-viewDirection, vertex.normal));
@@ -224,7 +278,7 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
         for (int i = 0; i < K; i++)
             color += (1 - payload.node[i].transmit) * payload.node[i].color;
 
-        payload.ShadedColorAndHitT = float4(color, RayTCurrent());
+    payload.ShadedColorAndHitT = float4(color, RayTCurrent());
     //payload.ShadedColorAndHitT = float4(vertex.normal, RayTCurrent());
     //payload.ShadedColorAndHitT = float4(RayTCurrent(), RayTCurrent(), RayTCurrent(), RayTCurrent());
     //payload.ShadedColorAndHitT = float4(float3(lod, lod, lod) / 9, RayTCurrent());

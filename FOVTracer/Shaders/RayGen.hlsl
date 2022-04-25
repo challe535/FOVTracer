@@ -68,7 +68,7 @@ void RayGen()
     float offsetX = stepSize;
     float offsetY = stepSize;
 
-    float2 jitter = jitterOffset * (params.isFoveatedRenderingEnabled ? 0 : 1);
+    float2 jitter = jitterOffset * (/*params.isFoveatedRenderingEnabled ||*/ params.takingReferenceScreenshot ? 0 : 1);
 
     for (int i = 0; i < params.sqrtSamplesPerPixel; i++)
     {
