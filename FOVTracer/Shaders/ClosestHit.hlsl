@@ -165,26 +165,6 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     if (params.flipNormals)
         vertex.normal = -vertex.normal;
     
-    // --- Light ---
-    OrbLightInfo plInfo;
-
-    plInfo.position = float3(-200, 700, 0);
-    plInfo.color = float3(1, 1, 1.0);
-    plInfo.luminocity = 500000;
-    plInfo.radius = 30;
-    //plInfo.luminocity = 2.5;
-
-    float3 viewDirection = normalize(WorldRayOrigin() - vertex.position);
-
-    float3 worldOriginOffsetOut = WorldRayOrigin() + RayTCurrent() * WorldRayDirection() + vertex.normal * 0.01f;
-    float3 worldOriginOffsetIn = WorldRayOrigin() + RayTCurrent() * WorldRayDirection() - vertex.normal * 0.01f;
-    
-    //Shadow calc
-    float distToLight = params.rayTMax;
-    float3 lightDir = getConeSample(plInfo, worldOriginOffsetOut, distToLight);
-    bool shadowed = IsShadowed(lightDir, worldOriginOffsetOut, distToLight, vertex.normal);
-    float3 lightColor = plInfo.color * plInfo.luminocity / pow(distToLight, 2);
-    
     //Texture LOD
     float2 pixelSize = 1.0f/DispatchRaysDimensions();
     float2 indexNorm = float2(DispatchRaysIndex().xy) * pixelSize;
@@ -211,8 +191,75 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
         diffuse *= albedo.SampleLevel(BilinearClamp, vertex.uv, lod).rgb;
     }
 
+    float3 color = diffuse * material.AmbientColor;
     
-    float3 color = /*material.AmbientColor * 0.05*/0;
+    // --- Light ---
+    OrbLightInfo plInfo;
+
+    //Sponza
+    //plInfo.position = float3(-200, 700, 0);
+    //plInfo.color = float3(1, 1, 1.0);
+    //plInfo.luminocity = 500000;
+    //plInfo.radius = 30;
+    
+    //Cornell-box
+    //plInfo.position = float3(0, 1.5, 0);
+    //plInfo.color = float3(1, 1, 1.0);
+    //plInfo.luminocity = 1;
+    //plInfo.radius = 0.3;
+    
+    //Sibenik
+    //plInfo.position = float3(6.5, -4, 0);
+    //plInfo.color = float3(1, 1, 1);
+    //plInfo.luminocity = 60;
+    //plInfo.radius = 1;
+    
+    //OrbLightInfo plInfo2;
+    //plInfo2.position = float3(-10, -6, 0);
+    //plInfo2.color = float3(0.8, 0.8, 1);
+    //plInfo2.luminocity = 30;
+    //plInfo2.radius = 1;
+    
+    //Sun temple
+    plInfo.position = float3(0, 1200, 0);
+    plInfo.color = float3(1, 1, 1);
+    plInfo.luminocity = 1000000;
+    plInfo.radius = 50;
+    
+    float3 viewDirection = normalize(WorldRayOrigin() - vertex.position);
+
+    float3 worldOriginOffsetOut = WorldRayOrigin() + RayTCurrent() * WorldRayDirection() + vertex.normal * 0.01f;
+    float3 worldOriginOffsetIn = WorldRayOrigin() + RayTCurrent() * WorldRayDirection() - vertex.normal * 0.01f;
+    
+    //Shadow calc
+    float distToLight = params.rayTMax;
+    float3 lightDir = getConeSample(plInfo, worldOriginOffsetOut, distToLight);
+    bool shadowed = IsShadowed(lightDir, worldOriginOffsetOut, distToLight, vertex.normal);
+    float3 lightColor = plInfo.color * plInfo.luminocity / pow(distToLight, 2);
+    
+    //Default ambiance;
+    //color *= 0.1;
+    
+    //Sun temple ambiance
+    color *= 0.3;
+    
+    if (!shadowed)
+    {
+        color += diffuse * max(dot(lightDir, vertex.normal), 0.0f) * lightColor;
+        color += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, vertex.normal)), viewDirection), 0.0), material.Shininess);
+    }
+    
+    //For sibenik mainly
+    //distToLight = params.rayTMax;
+    //lightDir = getConeSample(plInfo2, worldOriginOffsetOut, distToLight);
+    //shadowed = IsShadowed(lightDir, worldOriginOffsetOut, distToLight, vertex.normal);
+    //lightColor = plInfo2.color * plInfo2.luminocity / pow(distToLight, 2);
+    
+    //if (!shadowed)
+    //{
+    //    color += diffuse * max(dot(lightDir, vertex.normal), 0.0f) * lightColor;
+    //    color += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, vertex.normal)), viewDirection), 0.0), material.Shininess);
+    //}
 
     float effectThreshold = 0.25;
     float effectMargin = 0.1;
@@ -221,24 +268,19 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     float dropoffT = normedDist - (effectThreshold - effectMargin);
     float effectDropoff = 1 - (1/effectMargin) * max(dropoffT, 0);
     
-    if (shadowed)
-    {
-        color = diffuse * material.AmbientColor * 0.1;
-    }
-    else
-    {
-        color += diffuse * max(dot(lightDir, vertex.normal), 0.0f) * lightColor;
-        color += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, vertex.normal)), viewDirection), 0.0), material.Shininess);
-    }
-    
     //There doesn't seem to be any clear cut way to determine reflectivity so adjust on a scene by scene basis.
     float reflectivity = 0;
-    //if (any(material.TransmitanceFilter < 0.999))
-    //    reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
-    //else
-    //    reflectivity = (material.SpecularColor.r + material.SpecularColor.g + material.SpecularColor.b) / 3.0;
+    //Use this for Cornell-Box
+    if (any(material.TransmitanceFilter < 0.999))
+        reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
+    else
+        reflectivity = (material.SpecularColor.r + material.SpecularColor.g + material.SpecularColor.b) / 3.0;
 
-    reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
+    //Use this for sponza
+    //reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
+    
+    //Use this for sibenik
+    //reflectivity = (material.SpecularColor.r + material.SpecularColor.g + material.SpecularColor.b) / 3.0;
     
     if (reflectivity > 0 && payload.RecursionDepthRemaining > 0 && normedDist < effectThreshold)
     {

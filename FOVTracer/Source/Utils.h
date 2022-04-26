@@ -4,6 +4,8 @@
 #include "StaticMesh.h"
 #include "dlss/nvsdk_ngx.h"
 
+#include "DirectXTex/DirectXTex.h"
+
 #include "DX.h"
 
 #define PATH_TO_RESOURCES "./Resources/"
@@ -33,6 +35,10 @@ namespace Utils
 	TextureInfo LoadTexture(std::string filepath, D3D12Resources& resources, UINT channelBytes);
 
 	void FormatTexture(TextureInfo& info, UINT8* pixels, UINT newStride);
+
+	TextureInfo GetDecompressedAndConvertedImage(DirectX::ScratchImage& SrcImage);
+
+	void FillTextureInfoFromScratchImage(DirectX::ScratchImage& Image, TextureInfo& TInfo);
 
 	struct SFallbackTexture
 	{

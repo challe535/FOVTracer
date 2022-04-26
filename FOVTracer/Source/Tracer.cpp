@@ -104,7 +104,7 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 
 }
 
-void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool disableFOV, bool disableDLSS, uint32_t numberOfScreenshots)
+void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool disableFOV, bool disableDLSS, uint32_t numberOfScreenshots, uint32_t depth)
 {
 	if (scrshotRequested && screenshotsLeftToTake == 0)
 	{
@@ -128,13 +128,16 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 	UINT64* pTimestampData = nullptr;
 	Resources.TimestampReadBack->Map(0, nullptr, reinterpret_cast<void**>(&pTimestampData));
 
-	UINT64 CmdQueueFreq;
-	D3D.CmdQueue->GetTimestampFrequency(&CmdQueueFreq);
+	if (pTimestampData)
+	{
+		UINT64 CmdQueueFreq;
+		D3D.CmdQueue->GetTimestampFrequency(&CmdQueueFreq);
 
-	auto& App = Application::GetApplication();
-	App.RaytraceTimeMS = App.RaytraceTimeMS * 0.9 + 0.1 * 1000 * (pTimestampData[1] - pTimestampData[0]) / (double)CmdQueueFreq;
-	App.DLSSTimeMS = App.DLSSTimeMS * 0.9 + 0.1 * 1000 * (pTimestampData[3] - pTimestampData[2]) / (double)CmdQueueFreq;
-	Resources.TimestampReadBack->Unmap(0, nullptr);
+		auto& App = Application::GetApplication();
+		App.RaytraceTimeMS = App.RaytraceTimeMS * 0.9 + 0.1 * 1000 * (pTimestampData[1] - pTimestampData[0]) / (double)CmdQueueFreq;
+		App.DLSSTimeMS = App.DLSSTimeMS * 0.9 + 0.1 * 1000 * (pTimestampData[3] - pTimestampData[2]) / (double)CmdQueueFreq;
+		Resources.TimestampReadBack->Unmap(0, nullptr);
+	}
 
 	if (isTakingScreenshotThisFrame)
 	{
@@ -175,6 +178,8 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			DXCompute.paramCBData.disableTAA = true;
 		}
 
+		uint32_t prevDepth = Resources.paramCBData.recursionDepth;
+		Resources.paramCBData.recursionDepth = depth;
 		Resources.paramCBData.takingReferenceScreenshot = true;
 		DXCompute.paramCBData.takingReferenceScreenshot = true;
 
@@ -209,6 +214,7 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			DXCompute.paramCBData.isFoveatedRenderingEnabled = true;
 		}
 
+		Resources.paramCBData.recursionDepth = prevDepth;
 		Resources.paramCBData.takingReferenceScreenshot = false;
 		DXCompute.paramCBData.takingReferenceScreenshot = false;
 
@@ -227,9 +233,22 @@ void Tracer::Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool dis
 			D3D12::Update_Compute_Params(DXCompute, DXCompute.paramCBData);
 		}
 
-		//Get TAA back up and running after reset for next frame screenshot
-		for (int i = 0; i < 10; i++)
+		//Get TAA and DLSS back up to speed after reset for next frame screenshot
+		for (int i = 0; i < 30; i++)
 		{
+			float RenderTargetRatio = static_cast<float>(TargetRes.Width) / D3D.Width;
+			uint64_t TotalPhase = 8u * static_cast<uint64_t>(ceilf(RenderTargetRatio * RenderTargetRatio));
+
+			uint64_t HaltonIndex = i % TotalPhase;
+
+			DLSSConfigInfo.JitterOffset.X = Math::haltonF(HaltonIndex, 2.f) - 0.5f;
+			DLSSConfigInfo.JitterOffset.Y = Math::haltonF(HaltonIndex, 3.f) - 0.5f;
+
+			DLSSConfigInfo.JitterOffset = DLSSConfigInfo.JitterOffset;
+
+			Vector2f displayRes(TargetRes.Width, TargetRes.Height);
+			D3DResources::Update_View_CB(D3D, Resources, SceneToTrace->SceneCamera, DLSSConfigInfo.JitterOffset, displayRes);
+
 			DXR::Build_Command_List(D3D, DXR, Resources, DXCompute, DLSSConfigInfo, false, false, false);
 			D3D12::Reset_CommandList(D3D);
 			D3D12::WaitForGPU(D3D);
@@ -281,6 +300,7 @@ void Tracer::AddObject(SceneObject& SceneObj, uint32_t Index)
 
 	if (SceneObj.Mesh.HasTransparency)
 	{
+		CORE_ERROR("Mesh has transparency!");
 		Resources.sceneObjResources[Index].opacityTexKey = SceneObj.Mesh.MeshMaterial.OpacityMapPath;
 		LoadTexture(SceneObj.Mesh.MeshMaterial.OpacityMapPath);
 	}

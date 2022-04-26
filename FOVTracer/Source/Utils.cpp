@@ -320,6 +320,56 @@ namespace Utils
 		return FallbackTexture;
 	}
 
+	TextureInfo GetDecompressedAndConvertedImage(DirectX::ScratchImage& SrcImage)
+	{
+		TextureInfo DDSInfo;
+
+		auto img = SrcImage.GetImage(0, 0, 0);
+		bool IsBC = (img->format > 69 && img->format < 85) || (img->format > 93 && img->format < 100);
+
+		if (IsBC)
+		{
+			DirectX::ScratchImage Decompressed;
+			DirectX::Decompress(SrcImage.GetImages(), SrcImage.GetImageCount(), SrcImage.GetMetadata(), DXGI_FORMAT_UNKNOWN, Decompressed);
+
+			if (Decompressed.GetImage(0, 0, 0)->format != DXGI_FORMAT_R8G8B8A8_UNORM)
+			{
+				DirectX::ScratchImage Converted;
+				DirectX::Convert(*Decompressed.GetImage(0, 0, 0), DXGI_FORMAT_R8G8B8A8_UNORM, DirectX::TEX_FILTER_DEFAULT, DirectX::TEX_THRESHOLD_DEFAULT, Converted);
+
+				FillTextureInfoFromScratchImage(Converted, DDSInfo);
+				return DDSInfo;
+			}
+
+			FillTextureInfoFromScratchImage(Decompressed, DDSInfo);
+			return DDSInfo;
+		}
+
+		if (SrcImage.GetImage(0, 0, 0)->format != DXGI_FORMAT_R8G8B8A8_UNORM)
+		{
+			DirectX::ScratchImage Converted;
+			DirectX::Convert(*SrcImage.GetImage(0, 0, 0), DXGI_FORMAT_R8G8B8A8_UNORM, DirectX::TEX_FILTER_DEFAULT, DirectX::TEX_THRESHOLD_DEFAULT, Converted);
+
+			FillTextureInfoFromScratchImage(Converted, DDSInfo);
+			return DDSInfo;
+		}
+
+		FillTextureInfoFromScratchImage(SrcImage, DDSInfo);
+		return DDSInfo;
+	}
+
+	void FillTextureInfoFromScratchImage(DirectX::ScratchImage& Image, TextureInfo& TInfo)
+	{
+		TInfo.width = Image.GetImage(0, 0, 0)->width;
+		TInfo.height = Image.GetImage(0, 0, 0)->height;
+		TInfo.stride = Image.GetImage(0, 0, 0)->rowPitch / TInfo.width;
+
+		int numBytes = TInfo.width * TInfo.height * TInfo.stride;
+		TInfo.pixels.resize(numBytes);
+		for(int i = 0; i < numBytes; i++)
+			TInfo.pixels[i] = Image.GetImage(0, 0, 0)->pixels[i];
+	}
+
 	/**
 	* Load an image
 	*/
@@ -329,11 +379,36 @@ namespace Utils
 		//	return resources.Textures.at(filepath).textureInfo;
 
 		TextureInfo result = {};
+		UINT8* pixels = nullptr;
 
 		CORE_TRACE("Attempting to loading texture from {0}", filepath);
 
-		// Load image pixels with stb_image
-		UINT8* pixels = stbi_load(filepath.c_str(), &result.width, &result.height, &result.stride, STBI_default);
+		bool LoadedWithSTBI = false;
+
+		auto const UntilExtension = filepath.rfind(".");
+		if (UntilExtension != std::string::npos)
+		{
+			auto const Extension = filepath.substr(UntilExtension, filepath.length());
+
+			if (Extension.compare(".dds") == 0)
+			{
+				//Load DDS with DirectXTex
+				std::wstring ws(filepath.begin(), filepath.end());
+				DirectX::TexMetadata Metadata = {};
+				DirectX::ScratchImage ScImg;
+				DirectX::LoadFromDDSFile(ws.c_str(), DirectX::DDS_FLAGS_NONE, &Metadata, ScImg);
+
+				result = GetDecompressedAndConvertedImage(ScImg);
+				pixels = result.pixels.data();
+			}
+			else
+			{
+				// Load image pixels with stb_image
+				pixels = stbi_load(filepath.c_str(), &result.width, &result.height, &result.stride, STBI_default);
+				LoadedWithSTBI = true;
+			}
+		}
+
 		if (!pixels)
 		{
 			CORE_ERROR("Failed to load texture at {0}", filepath);
@@ -344,9 +419,14 @@ namespace Utils
 			result.height = fallback->height;
 			result.stride = fallback->stride;
 		}
-
+		
 		FormatTexture(result, pixels, channelBytes);
-		stbi_image_free(pixels);
+
+		if (LoadedWithSTBI)
+		{
+			stbi_image_free(pixels);
+		}
+		
 
 		return result;
 	}

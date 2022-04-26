@@ -26,6 +26,9 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 	HRESULT HR = AppWindow::Create(width, height, instance, Window, title);
 	Utils::Validate(HR, L"Error: Failed to create window!");
 
+	HR = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+	Utils::Validate(HR, L"Error: Failed to initialize COM!");
+
 	RECT OldClip, Clip;
 
 	GetClipCursor(&OldClip);
@@ -35,10 +38,11 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 
 	Log::Init();
 
+	RayScene.LoadFromPath(Utils::GetResourcePath("SunTemple/SunTemple.fbx"), false);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("cornell_box/CornellBox-Sphere.obj"), false);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("sibenik/sibenik.obj"), true);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("San_Miguel/san-miguel-low-poly.obj"), false);
-	RayScene.LoadFromPath(Utils::GetResourcePath("sponza/sponza.obj"), false);
+	//RayScene.LoadFromPath(Utils::GetResourcePath("sponza/sponza.obj"), false);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("misc/bunny.obj"), true);
 	CORE_INFO("{0} objects in scene.", RayScene.GetNumSceneObjects());
 
@@ -99,6 +103,7 @@ void Application::Run()
 	float cameraMoveAmount = 0.1f;
 	uint32_t scrShotSqrtSamples = 6;
 	uint32_t nScrShot = 1;
+	uint32_t scrShotDepth = 1;
 
 	float CameraSpeed = 100.0f;
 	bool SetRotationFromUI = false;
@@ -206,7 +211,7 @@ void Application::Run()
 			ImGui::SliderInt("Recursion depth", reinterpret_cast<int*>(&TraceParams.recursionDepth), 1, 4);
 			ImGui::Checkbox("Indirect illumination (Expensive!)", reinterpret_cast<bool*>(&TraceParams.useIndirectIllum));
 			ImGui::Checkbox("Flip normals", reinterpret_cast<bool*>(&TraceParams.flipNormals));
-			ImGui::SliderFloat("Ray T max", &TraceParams.rayTMax, 0.0f, 10000.0f);
+			ImGui::SliderFloat("Ray T max", &TraceParams.rayTMax, 0.0f, 1000000.0f);
 			const char* items[] = { "1920x1080", "1280x720" };
 			static const char* current_item = "1920x1080";
 
@@ -260,6 +265,7 @@ void Application::Run()
 			ImGui::Text("Screenshot reference parameters");
 			ImGui::SliderInt("Screenshot sqrt spp", reinterpret_cast<int*>(&scrShotSqrtSamples), 1, 15);
 			ImGui::SliderInt("Number of screenshots", reinterpret_cast<int*>(&nScrShot), 1, 300);
+			ImGui::SliderInt("Reference recursion depth", reinterpret_cast<int*>(&scrShotDepth), 1, 4);
 			ImGui::Checkbox("Disable DLSS", &scrShotDisableDLSS);
 			ImGui::Checkbox("Disable Foveation", &scrShotDisableFOV);
 			ImGui::Checkbox("Sway camera", &swayCamera);
@@ -271,7 +277,7 @@ void Application::Run()
 		ImGui::End();
 
 		ImGui::Render();
-		RayTracer.Render(InputHandler->IsKeyJustPressed(P_KEY), scrShotSqrtSamples, scrShotDisableFOV, scrShotDisableDLSS, nScrShot);
+		RayTracer.Render(InputHandler->IsKeyJustPressed(P_KEY), scrShotSqrtSamples, scrShotDisableFOV, scrShotDisableDLSS, nScrShot, scrShotDepth);
 
 		auto const FrameEnd = std::chrono::high_resolution_clock::now();
 

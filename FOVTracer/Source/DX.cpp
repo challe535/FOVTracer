@@ -842,7 +842,7 @@ namespace D3DResources
 		subresource.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		subresource.Width = texture.width;
 		subresource.Height = texture.height;
-		subresource.RowPitch = ALIGN(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT, texture.width * texture.stride);
+		subresource.RowPitch = /*ALIGN(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT,*/ texture.width * texture.stride/*)*/;
 		subresource.Depth = 1;
 
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
@@ -2045,7 +2045,7 @@ namespace DXR
 
 			// Create the material texture SRV
 			D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
-			textureSRVDesc.Format = diffuseTex.resourceDesc.Format;
+			textureSRVDesc.Format = diffuseTex.resourceDesc.Format != DXGI_FORMAT_UNKNOWN ? diffuseTex.resourceDesc.Format : DXGI_FORMAT_R8G8B8A8_UNORM;
 			textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 			textureSRVDesc.Texture2D.MipLevels = diffuseTex.resourceDesc.MipLevels;
 			textureSRVDesc.Texture2D.MostDetailedMip = 0;
@@ -2058,7 +2058,7 @@ namespace DXR
 
 			// Create the normals texture SRV
 			D3D12_SHADER_RESOURCE_VIEW_DESC normalsSRVDesc = {};
-			normalsSRVDesc.Format = normalTex.resourceDesc.Format;
+			normalsSRVDesc.Format = normalTex.resourceDesc.Format != DXGI_FORMAT_UNKNOWN ? normalTex.resourceDesc.Format : DXGI_FORMAT_R8G8B8A8_UNORM;
 			normalsSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 			normalsSRVDesc.Texture2D.MipLevels = normalTex.resourceDesc.MipLevels;
 			normalsSRVDesc.Texture2D.MostDetailedMip = 0;
@@ -2071,7 +2071,7 @@ namespace DXR
 
 			// Create the opacity map SRV
 			D3D12_SHADER_RESOURCE_VIEW_DESC opacitySRVDesc = {};
-			opacitySRVDesc.Format = opacityTex.resourceDesc.Format;
+			opacitySRVDesc.Format = opacityTex.resourceDesc.Format != DXGI_FORMAT_UNKNOWN ? opacityTex.resourceDesc.Format : DXGI_FORMAT_R8G8B8A8_UNORM;
 			opacitySRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 			opacitySRVDesc.Texture2D.MipLevels = opacityTex.resourceDesc.MipLevels;
 			opacitySRVDesc.Texture2D.MostDetailedMip = 0;
