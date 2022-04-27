@@ -197,10 +197,10 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     OrbLightInfo plInfo;
 
     //Sponza
-    //plInfo.position = float3(-200, 700, 0);
-    //plInfo.color = float3(1, 1, 1.0);
-    //plInfo.luminocity = 500000;
-    //plInfo.radius = 30;
+    plInfo.position = float3(-200, 700, 0);
+    plInfo.color = float3(1, 1, 1.0);
+    plInfo.luminocity = 500000;
+    plInfo.radius = 30;
     
     //Cornell-box
     //plInfo.position = float3(0, 1.5, 0);
@@ -221,10 +221,16 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     //plInfo2.radius = 1;
     
     //Sun temple
-    plInfo.position = float3(0, 1200, 0);
-    plInfo.color = float3(1, 1, 1);
-    plInfo.luminocity = 1000000;
-    plInfo.radius = 50;
+    //plInfo.position = float3(0, 1200, 0);
+    //plInfo.color = float3(1, 1, 1);
+    //plInfo.luminocity = 1000000;
+    //plInfo.radius = 50;
+    
+    //Stanford bunny
+    //plInfo.position = float3(0.3, 1.5, -0.3);
+    //plInfo.color = float3(1, 1, 1.0);
+    //plInfo.luminocity = 1;
+    //plInfo.radius = 0.0;
     
     float3 viewDirection = normalize(WorldRayOrigin() - vertex.position);
 
@@ -238,10 +244,10 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     float3 lightColor = plInfo.color * plInfo.luminocity / pow(distToLight, 2);
     
     //Default ambiance;
-    //color *= 0.1;
+    color *= 0.1;
     
     //Sun temple ambiance
-    color *= 0.3;
+    //color *= 0.3;
     
     if (!shadowed)
     {
@@ -271,13 +277,13 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     //There doesn't seem to be any clear cut way to determine reflectivity so adjust on a scene by scene basis.
     float reflectivity = 0;
     //Use this for Cornell-Box
-    if (any(material.TransmitanceFilter < 0.999))
-        reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
-    else
-        reflectivity = (material.SpecularColor.r + material.SpecularColor.g + material.SpecularColor.b) / 3.0;
+    //if (any(material.TransmitanceFilter < 0.999))
+    //    reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
+    //else
+    //    reflectivity = (material.SpecularColor.r + material.SpecularColor.g + material.SpecularColor.b) / 3.0;
 
     //Use this for sponza
-    //reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
+    reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
     
     //Use this for sibenik
     //reflectivity = (material.SpecularColor.r + material.SpecularColor.g + material.SpecularColor.b) / 3.0;
@@ -305,15 +311,15 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     
     //Random Global Illum
     //if (payload.RecursionDepthRemaining > 0)
-        if (payload.RecursionDepthRemaining == params.recursionDepth && params.useIndirectIllum && normedDist < effectThreshold)
-        {
-            float3 outDir = RandOnUnitSphere(float4(worldOriginOffsetOut, params.elapsedTimeSeconds % 20));
+    if (payload.RecursionDepthRemaining == params.recursionDepth && params.useIndirectIllum && normedDist < effectThreshold)
+    {
+        float3 outDir = RandOnUnitSphere(float4(worldOriginOffsetOut, params.elapsedTimeSeconds % 20));
 
-            outDir *= sign(dot(outDir, vertex.normal));
+        outDir *= sign(dot(outDir, vertex.normal));
         
-            float4 illumColorAndT = LaunchRecursive(outDir, payload.RecursionDepthRemaining, worldOriginOffsetOut);
-            color += illumColorAndT.rgb * max(dot(outDir, vertex.normal), 0.0f) * effectDropoff;
-        }
+        float4 illumColorAndT = LaunchRecursive(outDir, payload.RecursionDepthRemaining, worldOriginOffsetOut);
+        color += illumColorAndT.rgb * max(dot(outDir, vertex.normal), 0.0f) * effectDropoff;
+    }
 
     //TODO: Maybe avoidable to always do this loop if no transparency was encountered. Minor improvement expected though...
     [unroll]

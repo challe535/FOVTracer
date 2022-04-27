@@ -21,6 +21,7 @@ cbuffer ParamsCB : register(b0)
     bool disableTAA;
     bool usingDLSS;
     bool takingReferenceScreenshot;
+    float foveationAreaThreshold;
 }
 
 RWTexture2D<float4> InColorBuffer   : register(u0);
@@ -35,26 +36,51 @@ RWTexture2D<float4> WorldPosBuffer  : register(u8);
 RWTexture2D<float> DepthOutBuffer   : register(u9);
 
 
-float4 sampleTexture(RWTexture2D<float4> buffer, float2 index, int kernelSize)
+float4 sampleTexture(RWTexture2D<float4> buffer, float2 index, int kernelSize, float normFovealDist)
 {
     float4 result = 0;
-
-    if (isFoveatedRenderingEnabled)
+    
+    //kernelSize *= kernelSizeFade;
+    //kernelSize = max(kernelSize, 1);
+    
+    if (isFoveatedRenderingEnabled && normFovealDist > foveationAreaThreshold)
     {
         int kernelCenter = kernelSize / 2;
         float sigma = 0.85 * kernelCenter;
         float kernelSum = 0;
-        for (int i = -kernelCenter; i < kernelSize - kernelCenter; i++)
-        {
-            for (int j = -kernelCenter; j < kernelSize - kernelCenter; j++)
+        
+        float radiusFade = min(max(normFovealDist - foveationAreaThreshold, 0) * 5, 1);
+        float radius = sqrt(kernelCenter * kernelCenter * 2) * radiusFade;
+        int steps = kernelSize;
+        float stepSize = radius / steps;
+        int arcs = kernelSize * 2;
+        
+        for (int i = 0; i < arcs; i++)
+        { 
+            for (int j = 1; j <= steps; j++)
             {
-                float t = -(pow(i, 2) + pow(j, 2)) / (2 * pow(sigma, 2));
+                float angle = i * 2 * PI / arcs;
+                float2 sampleOffset = float2(cos(angle), sin(angle)) * j * stepSize;
+                
+                float t = -(pow(sampleOffset.x, 2) + pow(sampleOffset.y, 2)) / (2 * pow(sigma, 2));
                 float gauss = clamp(exp(t) / (2 * PI * pow(sigma, 2)), 0, 1);
 
-                result += buffer[float2(index.x + i, index.y + j) % resolution] * gauss;
+                result += buffer[(index + sampleOffset) % resolution] * gauss;
                 kernelSum += gauss;
             }
         }
+        
+        //for (int i = -kernelCenter; i < kernelSize - kernelCenter; i++)
+        //{
+        //    for (int j = -kernelCenter; j < kernelSize - kernelCenter; j++)
+        //    {
+        //        float t = -(pow(i, 2) + pow(j, 2)) / (2 * pow(sigma, 2));
+        //        float gauss = clamp(exp(t) / (2 * PI * pow(sigma, 2)), 0, 1);
+
+        //        result += buffer[float2(index.x + i, index.y + j) % resolution] * gauss;
+        //        kernelSum += gauss;
+        //    }
+        //}
 
         result /= kernelSum;
         //result /= kernelSize * kernelSize;
@@ -141,6 +167,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
 
     int kernelSize = 0;
 
+    float normFovealDist = -1;
     if (isFoveatedRenderingEnabled)
     {
         //LaunchIndex += jitterOffset * (takingReferenceScreenshot ? 0 : 1);
@@ -161,7 +188,9 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
         float u = uNorm * resolution.x;
         float v = (atan2(relativePoint.y, relativePoint.x) + (relativePoint.y < 0 ? 1 : 0) * 2 * PI) * resolution.y / (2 * PI);
 
-        sampleIndex = float2(u, v);
+        normFovealDist = length(relativePoint + 0.5) / maxCornerDist;
+        if (normFovealDist > foveationAreaThreshold)
+            sampleIndex = float2(u, v);
 
         float c = 1.8;
         float t = ceil(blurA - uNorm);
@@ -175,13 +204,13 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
         kernelSize = 1 + 2 * floor(n);
     }
 
-    finalColor = sampleTexture(InColorBuffer, sampleIndex, kernelSize).rgb;
+    finalColor = sampleTexture(InColorBuffer, sampleIndex, kernelSize, normFovealDist).rgb;
     depth = WorldPosBuffer[sampleIndex].a;
     motion = InMotionBuffer[sampleIndex].xy;
 
     if (isWorldPosView)
     {
-        finalColor = sampleTexture(WorldPosBuffer, sampleIndex, kernelSize).xyz;
+        finalColor = sampleTexture(WorldPosBuffer, sampleIndex, kernelSize, normFovealDist).xyz;
     }
     else if (isDepthView)
     {
@@ -212,7 +241,6 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     
     float alpha = 0.15;
     
-    float normFovealDist = length(relativePoint) / maxCornerDist;
     bool shouldAdjustTAAForFOV = usingDLSS && isFoveatedRenderingEnabled;
     float TAAThreshold = 0.2;
     float TAAOffsetFOV = pow(max(((1 - alpha) / TAAThreshold) * (TAAThreshold - normFovealDist), 0.0), 2) * (shouldAdjustTAAForFOV ? 1 : 0);

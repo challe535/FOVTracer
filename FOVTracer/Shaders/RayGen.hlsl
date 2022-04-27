@@ -28,7 +28,10 @@ float2 LogPolar2Screen(float2 logIndex, float2 dimensions, float2 fovealPoint, f
 float3 GetRayDir(float2 index, float2 dimensions, float aspectRatio, float2 fovealPoint, float B, float L)
 {
     float2 d = ((index / dimensions.xy) * 2.f - 1.f);
-    if (params.isFoveatedRenderingEnabled)
+    
+    float distToFov = length(index - fovealPoint) / exp(L);
+    
+    if (params.isFoveatedRenderingEnabled && distToFov > params.foveationAreaThreshold)
     {
         float2 logPolar2Screen = LogPolar2Screen(index, dimensions, fovealPoint, B, L);
             
@@ -76,7 +79,7 @@ void RayGen()
         for (int j = 0; j < params.sqrtSamplesPerPixel; j++)
         {
             float2 AdjustedIndex = LaunchIndex + float2(offsetX, offsetY);
-            float2 JitteredIndex = AdjustedIndex + jitter;
+            float2 JitteredIndex = AdjustedIndex + jitter * stepSize;
 
             float3 rayDir = GetRayDir(AdjustedIndex, LaunchDimensions, aspectRatio, fovealPoint, B, L);
             float3 jitterDir = GetRayDir(JitteredIndex, LaunchDimensions, aspectRatio, fovealPoint, B, L);
@@ -159,7 +162,9 @@ void RayGen()
     //        break;
     //}
     
-    float2 motionIndex = params.isFoveatedRenderingEnabled ? LogPolar2Screen(LaunchIndex + 0.5, LaunchDimensions, fovealPoint, B, L) : LaunchIndex + 0.5;
+    float distToFov = length(LaunchIndex + 0.5 - fovealPoint) / maxCornerDist;
+    
+    float2 motionIndex = (params.isFoveatedRenderingEnabled && distToFov > params.foveationAreaThreshold) ? LogPolar2Screen(LaunchIndex + 0.5, LaunchDimensions, fovealPoint, B, L) : LaunchIndex + 0.5;
     float2 motion = motionIndex - getClip(WorldPosBuffer[LaunchIndex].xyz, aspectRatio).xy * LaunchDimensions;
     MotionOutput[LaunchIndex.xy] = motion;
 

@@ -71,6 +71,7 @@ struct TraceParamsCB
     float rayTMax;
     bool flipNormals;
     bool takingReferenceScreenshot;
+    float foveationAreaThreshold;
 };
 
 ConstantBuffer<TraceParamsCB> params : register(b2);

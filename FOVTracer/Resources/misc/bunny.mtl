@@ -1,7 +1,8 @@
 newmtl bunny
 	Ka 1.000 1.000 1.000
 	Kd 0.710 0.396 0.114
-	Ks 0.000 0.000 0.000
+	Ks 0.300 0.300 0.300
+	Ns 70.000
 	d 1.0
 	illum 2
 	map_Kd textures\fur.jpg

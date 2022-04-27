@@ -38,11 +38,11 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 
 	Log::Init();
 
-	RayScene.LoadFromPath(Utils::GetResourcePath("SunTemple/SunTemple.fbx"), false);
+	//RayScene.LoadFromPath(Utils::GetResourcePath("SunTemple/SunTemple.fbx"), false);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("cornell_box/CornellBox-Sphere.obj"), false);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("sibenik/sibenik.obj"), true);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("San_Miguel/san-miguel-low-poly.obj"), false);
-	//RayScene.LoadFromPath(Utils::GetResourcePath("sponza/sponza.obj"), false);
+	RayScene.LoadFromPath(Utils::GetResourcePath("sponza/sponza.obj"), false);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("misc/bunny.obj"), true);
 	CORE_INFO("{0} objects in scene.", RayScene.GetNumSceneObjects());
 
@@ -133,6 +133,7 @@ void Application::Run()
 		ComputeParams.fovealCenter = TraceParams.fovealCenter;
 		ComputeParams.isFoveatedRenderingEnabled = TraceParams.isFoveatedRenderingEnabled;
 		ComputeParams.kernelAlpha = TraceParams.kernelAlpha;
+		ComputeParams.foveationAreaThreshold = TraceParams.foveationAreaThreshold;
 		//ComputeParams.resetColorHistory = false;
 
 		if (!IsRecording)
@@ -236,6 +237,7 @@ void Application::Run()
 			ImGui::Checkbox("Use foveated rendering", reinterpret_cast<bool*>(&TraceParams.isFoveatedRenderingEnabled));
 			ImGui::SliderFloat2("Foveal point", reinterpret_cast<float*>(&TraceParams.fovealCenter), 0.f, 1.f);
 			ImGui::SliderFloat("Kernel Alpha", &TraceParams.kernelAlpha, 0.f, 6.0f);
+			ImGui::SliderFloat("Foveation threshold", &TraceParams.foveationAreaThreshold, 0.0f, 1.0f);
 			ImGui::Checkbox("Vsync", &RayTracer.D3D.Vsync);
 			ImGui::Checkbox("Motion View", reinterpret_cast<bool*>(&ComputeParams.isMotionView));
 			ImGui::Checkbox("Depth View", reinterpret_cast<bool*>(&ComputeParams.isDepthView));
