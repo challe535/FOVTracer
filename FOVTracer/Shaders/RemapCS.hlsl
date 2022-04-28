@@ -165,7 +165,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     float maxCornerDist;
     float2 relativePoint;
 
-    int kernelSize = 0;
+    float kernelSize = 0;
 
     float normFovealDist = -1;
     if (isFoveatedRenderingEnabled)
@@ -201,7 +201,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
         
         float n = t * inner + (1 - t) * outer;
 
-        kernelSize = 1 + 2 * floor(n);
+        kernelSize = ceil(1 + 2 * n);
     }
 
     finalColor = sampleTexture(InColorBuffer, sampleIndex, kernelSize, normFovealDist).rgb;
