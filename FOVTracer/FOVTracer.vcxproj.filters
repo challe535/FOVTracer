@@ -231,5 +231,8 @@
     <FxCompile Include="Shaders\WatermarkCS.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="Shaders\RayGenCentral.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

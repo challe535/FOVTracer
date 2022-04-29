@@ -69,21 +69,8 @@ float4 sampleTexture(RWTexture2D<float4> buffer, float2 index, int kernelSize, f
                 kernelSum += gauss;
             }
         }
-        
-        //for (int i = -kernelCenter; i < kernelSize - kernelCenter; i++)
-        //{
-        //    for (int j = -kernelCenter; j < kernelSize - kernelCenter; j++)
-        //    {
-        //        float t = -(pow(i, 2) + pow(j, 2)) / (2 * pow(sigma, 2));
-        //        float gauss = clamp(exp(t) / (2 * PI * pow(sigma, 2)), 0, 1);
-
-        //        result += buffer[float2(index.x + i, index.y + j) % resolution] * gauss;
-        //        kernelSum += gauss;
-        //    }
-        //}
-
+       
         result /= kernelSum;
-        //result /= kernelSize * kernelSize;
     }
     else
     {
@@ -93,69 +80,10 @@ float4 sampleTexture(RWTexture2D<float4> buffer, float2 index, int kernelSize, f
     return result;
 }
 
-//float3 ResolveTAA(float2 index, int kernelSize)
-//{
-//    float3 result;
-    
-//    switch (currentBufferIndex)
-//    {
-//        case 0:
-//            result = (
-//                sampleTexture(InColorBuffer, index, kernelSize).rgb
-//                + sampleTexture(InColorBuffer4, index, kernelSize).rgb * 0.5
-//                + sampleTexture(InColorBuffer3, index, kernelSize).rgb * 0.25
-//                + sampleTexture(InColorBuffer2, index, kernelSize).rgb * 0.125
-//                + sampleTexture(InColorBuffer1, index, kernelSize).rgb * 0.0625
-//                ) / (1 + 0.5 + 0.25 + 0.125 + 0.0625);
-//            break;
-//        case 1:
-//            result = (
-//                sampleTexture(InColorBuffer1, index, kernelSize).rgb
-//                + sampleTexture(InColorBuffer, index, kernelSize).rgb * 0.5
-//                + sampleTexture(InColorBuffer4, index, kernelSize).rgb * 0.25
-//                + sampleTexture(InColorBuffer3, index, kernelSize).rgb * 0.125
-//                + sampleTexture(InColorBuffer2, index, kernelSize).rgb * 0.0625
-//                ) / (1 + 0.5 + 0.25 + 0.125 + 0.0625);
-//            break;
-//        case 2:
-//            result = (
-//                sampleTexture(InColorBuffer2, index, kernelSize).rgb
-//                + sampleTexture(InColorBuffer1, index, kernelSize).rgb * 0.5
-//                + sampleTexture(InColorBuffer, index, kernelSize).rgb * 0.25
-//                + sampleTexture(InColorBuffer4, index, kernelSize).rgb * 0.125
-//                + sampleTexture(InColorBuffer3, index, kernelSize).rgb * 0.0625
-//                ) / (1 + 0.5 + 0.25 + 0.125 + 0.0625);
-//            break;
-//        case 3:
-//            result = (
-//                sampleTexture(InColorBuffer3, index, kernelSize).rgb
-//                + sampleTexture(InColorBuffer2, index, kernelSize).rgb * 0.5
-//                + sampleTexture(InColorBuffer1, index, kernelSize).rgb * 0.25
-//                + sampleTexture(InColorBuffer, index, kernelSize).rgb * 0.125
-//                + sampleTexture(InColorBuffer4, index, kernelSize).rgb * 0.0625
-//                ) / (1 + 0.5 + 0.25 + 0.125 + 0.0625);
-//            break;
-//        case 4:
-//            result = (
-//                sampleTexture(InColorBuffer4, index, kernelSize).rgb
-//                + sampleTexture(InColorBuffer3, index, kernelSize).rgb * 0.5
-//                + sampleTexture(InColorBuffer2, index, kernelSize).rgb * 0.25
-//                + sampleTexture(InColorBuffer1, index, kernelSize).rgb * 0.125
-//                + sampleTexture(InColorBuffer, index, kernelSize).rgb * 0.0625
-//                ) / (1 + 0.5 + 0.25 + 0.125 + 0.0625);
-//            break;
-//        default:
-//            result = float3(0, 0, 1);
-//            break;
-//    }
-    
-//    return result;
-//}
-
 [numthreads(BLOCKSIZE, BLOCKSIZE, 1)]
 void CSMain(uint3 DTid : SV_DispatchThreadID)
 {
-    float2 LaunchIndex = float2(DTid.xy);
+    float2 LaunchIndex = float2(DTid.xy) + 0.5;
 	
     float3 finalColor = float3(0, 0, 0);
     float depth = -1;
@@ -188,7 +116,8 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
         float u = uNorm * resolution.x;
         float v = (atan2(relativePoint.y, relativePoint.x) + (relativePoint.y < 0 ? 1 : 0) * 2 * PI) * resolution.y / (2 * PI);
 
-        normFovealDist = length(relativePoint + 0.5) / maxCornerDist;
+        normFovealDist = length(relativePoint) / maxCornerDist;
+
         if (normFovealDist > foveationAreaThreshold)
             sampleIndex = float2(u, v);
 
@@ -202,9 +131,19 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
         float n = t * inner + (1 - t) * outer;
 
         kernelSize = ceil(1 + 2 * n);
+        
+        if (normFovealDist > foveationAreaThreshold)
+            finalColor = sampleTexture(InColorBuffer, sampleIndex, kernelSize, normFovealDist).rgb;
+        else
+            finalColor = sampleTexture(InColorBuffer2, sampleIndex, kernelSize, normFovealDist).rgb;
+    }
+    else
+    {
+        finalColor = sampleTexture(InColorBuffer, sampleIndex, kernelSize, normFovealDist).rgb;
     }
 
-    finalColor = sampleTexture(InColorBuffer, sampleIndex, kernelSize, normFovealDist).rgb;
+
+    
     depth = WorldPosBuffer[sampleIndex].a;
     motion = InMotionBuffer[sampleIndex].xy;
 
@@ -237,12 +176,12 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     OutMotionBuffer[DTid.xy] = motion;
     DepthOutBuffer[DTid.xy] = depth;
     
-    float2 historyIndex = DTid.xy + 0.5 + motion;
-    
-    float alpha = 0.15;
+    float2 historyIndex = LaunchIndex + motion;
     
     bool shouldAdjustTAAForFOV = usingDLSS && isFoveatedRenderingEnabled;
-    float TAAThreshold = 0.2;
+    float alpha = shouldAdjustTAAForFOV ? 0.15 : 0.4;
+    
+    float TAAThreshold = foveationAreaThreshold > 0 ? foveationAreaThreshold : 0.2;
     float TAAOffsetFOV = pow(max(((1 - alpha) / TAAThreshold) * (TAAThreshold - normFovealDist), 0.0), 2) * (shouldAdjustTAAForFOV ? 1 : 0);
     
     if (historyIndex.x >= resolution.x || historyIndex.x < 0 || historyIndex.y >= resolution.y || historyIndex.y < 0 || disableTAA)

@@ -50,7 +50,7 @@ protected:
 	void InitImGUI();
 
 	void AddObject(SceneObject& SceneObj, uint32_t Index);
-	TextureResource LoadTexture(std::string TextureName);
+	TextureResource LoadTexture(std::string TextureName, bool GenMips = true);
 
 	bool CheckDLSSIsSupported();
 	bool CreateDLSSFeature(NVSDK_NGX_PerfQuality_Value Quality, Resolution OptimalRenderSize, Resolution DisplayOutSize, bool EnableSharpening);

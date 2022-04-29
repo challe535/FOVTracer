@@ -29,9 +29,7 @@ float3 GetRayDir(float2 index, float2 dimensions, float aspectRatio, float2 fove
 {
     float2 d = ((index / dimensions.xy) * 2.f - 1.f);
     
-    float distToFov = length(index - fovealPoint) / exp(L);
-    
-    if (params.isFoveatedRenderingEnabled && distToFov > params.foveationAreaThreshold)
+    if (params.isFoveatedRenderingEnabled)
     {
         float2 logPolar2Screen = LogPolar2Screen(index, dimensions, fovealPoint, B, L);
             
@@ -62,6 +60,12 @@ void RayGen()
     float L = log(maxCornerDist);
     float B = 2 * PI / LaunchDimensions.y;
 
+    float r = round(length(LaunchDimensions) * params.foveationAreaThreshold * 0.5);
+    float u = floor(kernelFuncInv(max(log(r), 0) / L, params.kernelAlpha) * LaunchDimensions.x);
+   
+    if (LaunchIndex.x < u)
+        return;
+    
 	//super sampling
     float3 finalColor = float3(0, 0, 0);
     float4 finalWorldPosAndDepth = float4(0, 0, 0, 0);
@@ -71,7 +75,7 @@ void RayGen()
     float offsetX = stepSize;
     float offsetY = stepSize;
 
-    float2 jitter = jitterOffset * (/*params.isFoveatedRenderingEnabled ||*/ params.takingReferenceScreenshot ? 0 : 1);
+    float2 jitter = jitterOffset * (params.takingReferenceScreenshot ? 0 : 1);
 
     for (int i = 0; i < params.sqrtSamplesPerPixel; i++)
     {
@@ -80,7 +84,7 @@ void RayGen()
         {
             float2 AdjustedIndex = LaunchIndex + float2(offsetX, offsetY);
             float2 JitteredIndex = AdjustedIndex + jitter * stepSize;
-
+            
             float3 rayDir = GetRayDir(AdjustedIndex, LaunchDimensions, aspectRatio, fovealPoint, B, L);
             float3 jitterDir = GetRayDir(JitteredIndex, LaunchDimensions, aspectRatio, fovealPoint, B, L);
 
@@ -133,40 +137,19 @@ void RayGen()
 
     finalWorldPosAndDepth.a = clamp(finalWorldPosAndDepth.a / params.rayTMax, 0, 1);
 
-
+    LaunchIndex += 0.5;
+    
     RTOutput[LaunchIndex.xy] = float4(finalColor, 1.0f);
     
-    //switch (params.outBufferIndex)
-    //{
-    //    case 0:
-    //        RTOutput[LaunchIndex.xy] = float4(finalColor, 1.0f);
-    //        break;
-    //    case 1:
-    //        RTOutput1[LaunchIndex.xy] = float4(finalColor, 1.0f);
-    //        break;
-    //    case 2:
-    //        RTOutput2[LaunchIndex.xy] = float4(finalColor, 1.0f);
-    //        break;
-    //    case 3:
-    //        RTOutput3[LaunchIndex.xy] = float4(finalColor, 1.0f);
-    //        break;
-    //    case 4:
-    //        RTOutput4[LaunchIndex.xy] = float4(finalColor, 1.0f);
-    //        break;
-    //    default:
-    //        RTOutput[LaunchIndex.xy] = float4(0, 0, 0, 1.0f);
-    //        RTOutput1[LaunchIndex.xy] = float4(0, 0, 0, 1.0f);
-    //        RTOutput2[LaunchIndex.xy] = float4(0, 0, 0, 1.0f);
-    //        RTOutput3[LaunchIndex.xy] = float4(0, 0, 0, 1.0f);
-    //        RTOutput4[LaunchIndex.xy] = float4(0, 0, 0, 1.0f);
-    //        break;
-    //}
+    float2 motionIndex = LaunchIndex;
+    //bool fovMoved = any(params.fovealCenter != params.lastFovealCenter);
+    if (params.isFoveatedRenderingEnabled)
+    {
+        motionIndex = LogPolar2Screen(LaunchIndex, LaunchDimensions, params.lastFovealCenter * LaunchDimensions, B, L);
+    }
     
-    float distToFov = length(LaunchIndex + 0.5 - fovealPoint) / maxCornerDist;
-    
-    float2 motionIndex = (params.isFoveatedRenderingEnabled && distToFov > params.foveationAreaThreshold) ? LogPolar2Screen(LaunchIndex + 0.5, LaunchDimensions, fovealPoint, B, L) : LaunchIndex + 0.5;
     float2 motion = motionIndex - getClip(WorldPosBuffer[LaunchIndex].xyz, aspectRatio).xy * LaunchDimensions;
-    MotionOutput[LaunchIndex.xy] = motion;
+    MotionOutput[LaunchIndex.xy] = /*fovMoved ? 0 :*/ motion;
 
     WorldPosBuffer[LaunchIndex.xy] = finalWorldPosAndDepth;
 }

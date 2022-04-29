@@ -28,7 +28,8 @@
 
 namespace DX12Constants
 {
-	constexpr uint32_t descriptors_per_shader = 11 + NUM_HISTORY_BUFFER;
+	constexpr uint32_t descriptors_per_shader = 12 + NUM_HISTORY_BUFFER;
+	const std::string blue_noise_tex_path = "FreeBlueNoiseTextures/Data/128_128/LDR_LLL1_0.png";
 }
 
 static const D3D12_HEAP_PROPERTIES UploadHeapProperties =
@@ -71,6 +72,7 @@ struct TracerParameters
 	float elapsedTimeSeconds = 0.f;
 	uint32_t sqrtSamplesPerPixel = 1;
 	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(.5f, .5f);
+
 	uint32_t isFoveatedRenderingEnabled = 0;
 	float kernelAlpha = 3.0f;
 	float viewportRatio = 1.0f;
@@ -78,10 +80,14 @@ struct TracerParameters
 
 	uint32_t recursionDepth = 1;
 	uint32_t useIndirectIllum = 0;
+	DirectX::XMFLOAT2 lastFovealCenter = DirectX::XMFLOAT2(.5f, .5f);
+
 	float rayTMax = 5000;
 	uint32_t flipNormals = 0;
 	uint32_t takingReferenceScreenshot = 0;
 	float foveationAreaThreshold = 0.0;
+
+	uint32_t frameCount = 0;
 };
 
 struct TextureInfo
@@ -407,6 +413,7 @@ struct DXRGlobal
 	uint32_t										shaderTableRecordSize = 0;
 
 	RtProgram										rgs;
+	RtProgram										rgsCentral;
 	RtProgram										miss;
 	RtProgram										shadow_miss;
 

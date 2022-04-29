@@ -46,6 +46,8 @@ void Tracer::Init(TracerConfigInfo& config, HWND& window, Scene& scene)
 	for (int i = 0; i < scene.SceneObjects.size(); i++)
 		AddObject(scene.SceneObjects[i], i);
 
+	LoadTexture(Utils::GetResourcePath(DX12Constants::blue_noise_tex_path));
+
 	D3DResources::Create_UIHeap(D3D, Resources);
 
 	DXR::Create_DLSS_Output(D3D, Resources);
@@ -97,6 +99,12 @@ void Tracer::Update(Scene& scene, TracerParameters& params, ComputeParams& cPara
 	cParams.usingDLSS = params.isDLSSEnabled;
 
 	Vector2f displayRes(TargetRes.Width, TargetRes.Height);
+
+	if (!params.isFoveatedRenderingEnabled)
+	{
+		params.foveationAreaThreshold = 0;
+		cParams.foveationAreaThreshold = 0;
+	}
 
 	D3DResources::Update_Params_CB(Resources, params);
 	D3DResources::Update_View_CB(D3D, Resources, scene.SceneCamera, DLSSConfigInfo.JitterOffset, displayRes);
@@ -308,7 +316,7 @@ void Tracer::AddObject(SceneObject& SceneObj, uint32_t Index)
 	D3DResources::Create_Material_CB(D3D, Resources, SceneObj.Mesh.MeshMaterial, Index);
 }
 
-TextureResource Tracer::LoadTexture(std::string TextureName)
+TextureResource Tracer::LoadTexture(std::string TextureName, bool GenMips)
 {
 	if (Resources.Textures.count(TextureName) > 0)
 		return Resources.Textures.at(TextureName);
@@ -319,7 +327,8 @@ TextureResource Tracer::LoadTexture(std::string TextureName)
 	D3DResources::Create_Texture(D3D, NewTexture, NewTexture.textureInfo);
 
 	//Generate mipmaps
-	D3DResources::Generate_Mips(NewTexture, D3D, DXCompute);
+	if(GenMips)
+		D3DResources::Generate_Mips(NewTexture, D3D, DXCompute);
 
 	Resources.Textures.insert_or_assign(TextureName, NewTexture);
 

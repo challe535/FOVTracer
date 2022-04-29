@@ -1,5 +1,6 @@
 
 #define PI 3.141592653589793
+#define GOLDEN 1.61803398875
 #define K 1
 
 struct Node
@@ -61,6 +62,7 @@ struct TraceParamsCB
     float elapsedTimeSeconds;
     uint sqrtSamplesPerPixel;
     float2 fovealCenter;
+    
     bool isFoveatedRenderingEnabled;
     float kernelAlpha;
     float viewportRatio;
@@ -68,10 +70,14 @@ struct TraceParamsCB
 
     uint recursionDepth;
     bool useIndirectIllum;
+    float2 lastFovealCenter;
+    
     float rayTMax;
     bool flipNormals;
     bool takingReferenceScreenshot;
     float foveationAreaThreshold;
+    
+    uint frameCount;
 };
 
 ConstantBuffer<TraceParamsCB> params : register(b2);
@@ -91,6 +97,7 @@ ByteAddressBuffer vertices					: register(t2);
 Texture2D<float4> albedo					: register(t3);
 Texture2D<float4> normals					: register(t4);
 Texture2D<float4> opacity					: register(t5);
+Texture2D<float4> blueNoise					: register(t6);
 
 SamplerState BilinearClamp : register(s0);
 

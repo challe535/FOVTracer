@@ -1459,6 +1459,9 @@ namespace DXR
 		dxr.rgs = RtProgram(D3D12ShaderInfo(L"Shaders\\RayGen.hlsl", L"", L"lib_6_3"));
 		D3DShaders::Compile_Shader(shaderCompiler, dxr.rgs);
 
+		dxr.rgsCentral = RtProgram(D3D12ShaderInfo(L"Shaders\\RayGenCentral.hlsl", L"", L"lib_6_3"));
+		D3DShaders::Compile_Shader(shaderCompiler, dxr.rgsCentral);
+
 		// Describe the ray generation root signature
 		D3D12_DESCRIPTOR_RANGE ranges[3];
 
@@ -1475,7 +1478,7 @@ namespace DXR
 		ranges[1].OffsetInDescriptorsFromTableStart = ranges[0].NumDescriptors;
 
 		ranges[2].BaseShaderRegister = 0;
-		ranges[2].NumDescriptors = 6;
+		ranges[2].NumDescriptors = 7;
 		ranges[2].RegisterSpace = 0;
 		ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 		ranges[2].OffsetInDescriptorsFromTableStart = ranges[0].NumDescriptors + ranges[1].NumDescriptors;
@@ -1511,6 +1514,7 @@ namespace DXR
 
 		// Create the root signature
 		dxr.rgs.pRootSignature = D3D12::Create_Root_Signature(d3d, rootDesc);
+		dxr.rgsCentral.pRootSignature = D3D12::Create_Root_Signature(d3d, rootDesc);
 #if NAME_D3D_RESOURCES
 		dxr.rgs.pRootSignature->SetName(L"DXR RGS Root Signature");
 #endif
@@ -1582,7 +1586,7 @@ namespace DXR
 	{
 		UINT index = 0;
 		std::vector<D3D12_STATE_SUBOBJECT> subobjects;
-		subobjects.resize(15);
+		subobjects.resize(16);
 
 		// Add state subobject for the Shadow Miss shader
 		D3D12_EXPORT_DESC smsExportDesc = {};
@@ -1668,6 +1672,24 @@ namespace DXR
 
 		subobjects[index++] = rgs;
 
+		// Add state subobject for the RGS
+		D3D12_EXPORT_DESC rgsCentralExportDesc = {};
+		rgsCentralExportDesc.Name = L"RayGen_Central";
+		rgsCentralExportDesc.ExportToRename = L"RayGenCentral";
+		rgsCentralExportDesc.Flags = D3D12_EXPORT_FLAG_NONE;
+
+		D3D12_DXIL_LIBRARY_DESC	rgsCentralLibDesc = {};
+		rgsCentralLibDesc.DXILLibrary.BytecodeLength = dxr.rgsCentral.blob->GetBufferSize();
+		rgsCentralLibDesc.DXILLibrary.pShaderBytecode = dxr.rgsCentral.blob->GetBufferPointer();
+		rgsCentralLibDesc.NumExports = 1;
+		rgsCentralLibDesc.pExports = &rgsCentralExportDesc;
+
+		D3D12_STATE_SUBOBJECT rgsCentral = {};
+		rgsCentral.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
+		rgsCentral.pDesc = &rgsCentralLibDesc;
+
+		subobjects[index++] = rgsCentral;
+
 		// Add state subobject for the Miss shader
 		D3D12_EXPORT_DESC msExportDesc = {};
 		msExportDesc.Name = L"Miss_5";
@@ -1746,7 +1768,7 @@ namespace DXR
 		subobjects[index++] = shaderConfigObject;
 
 		// Create a list of the shader export names that use the payload
-		const WCHAR* shaderExports[] = { L"RayGen_12", L"Miss_5", L"HitGroup", L"ShadowHitGroup", L"Shadow_Miss_5"};
+		const WCHAR* shaderExports[] = { L"RayGen_12", L"Miss_5", L"HitGroup", L"ShadowHitGroup", L"Shadow_Miss_5", L"RayGen_Central"};
 
 		// Add a state subobject for the association between shaders and the payload
 		D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION shaderPayloadAssociation = {};
@@ -1768,7 +1790,7 @@ namespace DXR
 		subobjects[index++] = rayGenRootSigObject;
 
 		// Create a list of the shader export names that use the root signature
-		const WCHAR* rootSigExports[] = { L"RayGen_12", L"HitGroup", L"Miss_5", L"Shadow_Miss_5", L"ShadowHitGroup"};
+		const WCHAR* rootSigExports[] = { L"RayGen_12", L"HitGroup", L"Miss_5", L"Shadow_Miss_5", L"ShadowHitGroup", L"RayGen_Central"};
 
 		// Add a state subobject for the association between the RayGen shader and the local root signature
 		D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION rayGenShaderRootSigAssociation = {};
@@ -1843,7 +1865,7 @@ namespace DXR
 		dxr.shaderTableRecordSize += 8;							// CBV/SRV/UAV descriptor table
 		dxr.shaderTableRecordSize = ALIGN(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT, dxr.shaderTableRecordSize);
 
-		shaderTableSize = (dxr.shaderTableRecordSize * (4 + static_cast<uint32_t>(resources.sceneObjResources.size())));		// 5 shader records in the table
+		shaderTableSize = (dxr.shaderTableRecordSize * (5 + static_cast<uint32_t>(resources.sceneObjResources.size())));		// 5 shader records in the table
 		shaderTableSize = ALIGN(D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, shaderTableSize);
 
 		// Create the shader table buffer
@@ -1860,8 +1882,15 @@ namespace DXR
 
 		//GEN
 
-		// Shader Record 0 - Ray Generation program and local root parameter data (descriptor table with constant buffer and IB/VB pointers)
+		// Gen Shader Record 0 - Ray Generation program and local root parameter data (descriptor table with constant buffer and IB/VB pointers)
 		memcpy(pData, dxr.rtpsoInfo->GetShaderIdentifier(L"RayGen_12"), shaderIdSize);
+
+		// Set the root parameter data. Point to start of descriptor heap.
+		*reinterpret_cast<D3D12_GPU_DESCRIPTOR_HANDLE*>(pData + shaderIdSize) = resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+
+		// Gen Shader Record 1 - Ray Generation program and local root parameter data (descriptor table with constant buffer and IB/VB pointers)
+		pData += dxr.shaderTableRecordSize;
+		memcpy(pData, dxr.rtpsoInfo->GetShaderIdentifier(L"RayGen_Central"), shaderIdSize);
 
 		// Set the root parameter data. Point to start of descriptor heap.
 		*reinterpret_cast<D3D12_GPU_DESCRIPTOR_HANDLE*>(pData + shaderIdSize) = resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();
@@ -1891,8 +1920,6 @@ namespace DXR
 		D3D12_GPU_DESCRIPTOR_HANDLE handle = resources.descriptorHeap->GetGPUDescriptorHandleForHeapStart();
 		for (int i = 0; i < resources.sceneObjResources.size(); i++)
 		{
-
-
 			// Shader HitGroup Record 1 - Closest Hit program and local root parameter data (descriptor table with constant buffer and IB/VB pointers)
 			pData += dxr.shaderTableRecordSize;
 			memcpy(pData, dxr.rtpsoInfo->GetShaderIdentifier(L"HitGroup"), shaderIdSize);
@@ -2041,6 +2068,7 @@ namespace DXR
 			d3d.Device->CreateShaderResourceView(resources.sceneObjResources[i].vertexBuffer, &vertexSRVDesc, handle);
 			handle.ptr += handleIncrement;
 
+
 			auto& diffuseTex = resources.Textures[resources.sceneObjResources[i].diffuseTexKey];
 
 			// Create the material texture SRV
@@ -2053,6 +2081,7 @@ namespace DXR
 
 			d3d.Device->CreateShaderResourceView(diffuseTex.texture, &textureSRVDesc, handle);
 			handle.ptr += handleIncrement;
+
 
 			auto& normalTex = resources.Textures[resources.sceneObjResources[i].normalTexKey];
 
@@ -2067,6 +2096,7 @@ namespace DXR
 			d3d.Device->CreateShaderResourceView(normalTex.texture, &normalsSRVDesc, handle);
 			handle.ptr += handleIncrement;
 
+
 			auto& opacityTex = resources.Textures[resources.sceneObjResources[i].opacityTexKey];
 
 			// Create the opacity map SRV
@@ -2078,6 +2108,20 @@ namespace DXR
 			opacitySRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
 			d3d.Device->CreateShaderResourceView(opacityTex.texture, &opacitySRVDesc, handle);
+			handle.ptr += handleIncrement;
+
+
+			auto& blueNoiseTex = resources.Textures[Utils::GetResourcePath(DX12Constants::blue_noise_tex_path)];
+
+			// Create the blueNoise map SRV
+			D3D12_SHADER_RESOURCE_VIEW_DESC blueNoiseSRVDesc = {};
+			blueNoiseSRVDesc.Format = blueNoiseTex.resourceDesc.Format != DXGI_FORMAT_UNKNOWN ? blueNoiseTex.resourceDesc.Format : DXGI_FORMAT_R8G8B8A8_UNORM;
+			blueNoiseSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			blueNoiseSRVDesc.Texture2D.MipLevels = 1;
+			blueNoiseSRVDesc.Texture2D.MostDetailedMip = 0;
+			blueNoiseSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+			d3d.Device->CreateShaderResourceView(blueNoiseTex.texture, &blueNoiseSRVDesc, handle);
 			handle.ptr += handleIncrement;
 		}
 	}
@@ -2195,7 +2239,7 @@ namespace DXR
 		desc.RayGenerationShaderRecord.StartAddress = dxr.shaderTable->GetGPUVirtualAddress();
 		desc.RayGenerationShaderRecord.SizeInBytes = dxr.shaderTableRecordSize;
 
-		desc.MissShaderTable.StartAddress = desc.RayGenerationShaderRecord.StartAddress + desc.RayGenerationShaderRecord.SizeInBytes;
+		desc.MissShaderTable.StartAddress = desc.RayGenerationShaderRecord.StartAddress + desc.RayGenerationShaderRecord.SizeInBytes * 2;
 		desc.MissShaderTable.SizeInBytes = dxr.shaderTableRecordSize * 2;		// Only a single Miss program entry
 		desc.MissShaderTable.StrideInBytes = dxr.shaderTableRecordSize;
 
@@ -2215,6 +2259,12 @@ namespace DXR
 		d3d.CmdList->DispatchRays(&desc);
 		d3d.CmdList->ResourceBarrier(_countof(uavBarriers), uavBarriers);
 		
+		desc.RayGenerationShaderRecord.StartAddress = dxr.shaderTable->GetGPUVirtualAddress() + dxr.shaderTableRecordSize;
+		desc.RayGenerationShaderRecord.SizeInBytes = dxr.shaderTableRecordSize;
+
+		d3d.CmdList->DispatchRays(&desc);
+		d3d.CmdList->ResourceBarrier(_countof(uavBarriers), uavBarriers);
+
 		//End raytracing time
 		d3d.CmdList->EndQuery(resources.queryHeap, D3D12_QUERY_TYPE_TIMESTAMP, 1);
 

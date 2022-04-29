@@ -113,6 +113,7 @@ void Application::Run()
 
 	Camera& SceneCamera = RayScene.SceneCamera;
 	Quaternion OriginalCamOrianetation = SceneCamera.Orientation;
+	Vector2f FovealPoint(0.5, 0.5);
 
 	while (WM_QUIT != msg.message)
 	{
@@ -129,12 +130,17 @@ void Application::Run()
 
 		InputHandler->UpdateMouseInfo();
 
+		TraceParams.lastFovealCenter = TraceParams.fovealCenter;
+		TraceParams.fovealCenter = DirectX::XMFLOAT2(FovealPoint.X, FovealPoint.Y);
+
 		//Compute Params
 		ComputeParams.fovealCenter = TraceParams.fovealCenter;
 		ComputeParams.isFoveatedRenderingEnabled = TraceParams.isFoveatedRenderingEnabled;
 		ComputeParams.kernelAlpha = TraceParams.kernelAlpha;
 		ComputeParams.foveationAreaThreshold = TraceParams.foveationAreaThreshold;
 		//ComputeParams.resetColorHistory = false;
+
+		TraceParams.frameCount = FrameCount;
 
 		if (!IsRecording)
 		{
@@ -235,7 +241,7 @@ void Application::Run()
 			}
 			ImGui::Separator();
 			ImGui::Checkbox("Use foveated rendering", reinterpret_cast<bool*>(&TraceParams.isFoveatedRenderingEnabled));
-			ImGui::SliderFloat2("Foveal point", reinterpret_cast<float*>(&TraceParams.fovealCenter), 0.f, 1.f);
+			ImGui::SliderFloat2("Foveal point", reinterpret_cast<float*>(&FovealPoint), 0.f, 1.f);
 			ImGui::SliderFloat("Kernel Alpha", &TraceParams.kernelAlpha, 0.f, 6.0f);
 			ImGui::SliderFloat("Foveation threshold", &TraceParams.foveationAreaThreshold, 0.0f, 1.0f);
 			ImGui::Checkbox("Vsync", &RayTracer.D3D.Vsync);

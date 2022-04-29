@@ -1,6 +1,75 @@
 #include "Common.hlsl"
 #include "KernelFov.hlsl"
 
+//Credit: https://blog.demofox.org/2020/05/16/using-blue-noise-for-raytraced-soft-shadows/
+static float2 BlueNoiseInDisk[64] =
+{
+    float2(0.478712, 0.875764),
+    float2(-0.337956, -0.793959),
+    float2(-0.955259, -0.028164),
+    float2(0.864527, 0.325689),
+    float2(0.209342, -0.395657),
+    float2(-0.106779, 0.672585),
+    float2(0.156213, 0.235113),
+    float2(-0.413644, -0.082856),
+    float2(-0.415667, 0.323909),
+    float2(0.141896, -0.939980),
+    float2(0.954932, -0.182516),
+    float2(-0.766184, 0.410799),
+    float2(-0.434912, -0.458845),
+    float2(0.415242, -0.078724),
+    float2(0.728335, -0.491777),
+    float2(-0.058086, -0.066401),
+    float2(0.202990, 0.686837),
+    float2(-0.808362, -0.556402),
+    float2(0.507386, -0.640839),
+    float2(-0.723494, -0.229240),
+    float2(0.489740, 0.317826),
+    float2(-0.622663, 0.765301),
+    float2(-0.010640, 0.929347),
+    float2(0.663146, 0.647618),
+    float2(-0.096674, -0.413835),
+    float2(0.525945, -0.321063),
+    float2(-0.122533, 0.366019),
+    float2(0.195235, -0.687983),
+    float2(-0.563203, 0.098748),
+    float2(0.418563, 0.561335),
+    float2(-0.378595, 0.800367),
+    float2(0.826922, 0.001024),
+    float2(-0.085372, -0.766651),
+    float2(-0.921920, 0.183673),
+    float2(-0.590008, -0.721799),
+    float2(0.167751, -0.164393),
+    float2(0.032961, -0.562530),
+    float2(0.632900, -0.107059),
+    float2(-0.464080, 0.569669),
+    float2(-0.173676, -0.958758),
+    float2(-0.242648, -0.234303),
+    float2(-0.275362, 0.157163),
+    float2(0.382295, -0.795131),
+    float2(0.562955, 0.115562),
+    float2(0.190586, 0.470121),
+    float2(0.770764, -0.297576),
+    float2(0.237281, 0.931050),
+    float2(-0.666642, -0.455871),
+    float2(-0.905649, -0.298379),
+    float2(0.339520, 0.157829),
+    float2(0.701438, -0.704100),
+    float2(-0.062758, 0.160346),
+    float2(-0.220674, 0.957141),
+    float2(0.642692, 0.432706),
+    float2(-0.773390, -0.015272),
+    float2(-0.671467, 0.246880),
+    float2(0.158051, 0.062859),
+    float2(0.806009, 0.527232),
+    float2(-0.057620, -0.247071),
+    float2(0.333436, -0.516710),
+    float2(-0.550658, -0.315773),
+    float2(-0.652078, 0.589846),
+    float2(0.008818, 0.530556),
+    float2(-0.210004, 0.519896)
+};
+
 struct OrbLightInfo
 {
     float3 position;
@@ -14,61 +83,41 @@ float Rand(float2 seed)
     return frac(sin(dot(seed, float2(12.9898, 78.233))) * 43758.5453);
 }
 
-float3x3 angleAxis3x3(float angle, float3 axis)
+float3 getConeSample(uint sampleNum, float3 vToLightCenter, float radius, out float distToLightEdge)
 {
-    float3x3 I =
-    {
-        1, 0, 0,
-        0, 1, 0,
-        0, 0, 1
-    };
+    float dir = normalize(vToLightCenter);
+    float3 perpL = cross(dir, float3(0.f, 1.0f, 0.f));
     
-    float3x3 Ux =
-    {
-        0, -axis.z, axis.y,
-        axis.z, 0, -axis.x,
-        -axis.y, axis.x, 0
-    };
-    
-    float3x3 UxU =
-    {
-        pow(axis.x, 2), axis.x * axis.y, axis.x * axis.z,
-        axis.x * axis.y, pow(axis.y, 2), axis.y * axis.z,
-        axis.x * axis.z, axis.y * axis.z, pow(axis.z, 2)
-    };
-   
-    return I * cos(angle) + Ux * sin(angle) + UxU * (1 - cos(angle));
-}
-
-float3 getConeSample(OrbLightInfo light, float3 origin, out float distToLightEdge)
-{
-    float3 lightV = light.position - origin;
-    float3 toLight = normalize(lightV);
-    
-    float2 seed2D = float2(dot(lightV, float3(39.3895, 86.9384, 59.2956)), params.elapsedTimeSeconds % 3);
-    float r = Rand(seed2D) * light.radius;
-    float phi = Rand(seed2D.yx) * 2.0f * PI;
-    
-    // Calculate a vector perpendicular to L
-    float3 perpL = cross(toLight, float3(0.f, 1.0f, 0.f));
-    // Handle case where L = up -> perpL should then be (1,0,0)
     if (all(perpL == 0.0f))
     {
         perpL.x = 1.0;
     }
     
-    float3 offset = mul(angleAxis3x3(phi, toLight), perpL);
-    float3 shadowVector = light.position + perpL * r - origin;
+    float3 perpU = cross(perpL, dir);
+    
+    float angle = frac(blueNoise.Load(int3(DispatchRaysIndex() % 128)) + params.frameCount * GOLDEN);
+    float2x2 rot = { cos(angle), -sin(angle), sin(angle), cos(angle) };
+    
+    float2 offset = mul(rot, BlueNoiseInDisk[sampleNum] * radius);
+    float3 vInDisk = perpL * offset.x + perpU * offset.y;
+    
+    float3 shadowVector = vToLightCenter + vInDisk;
     distToLightEdge = length(shadowVector);
     return normalize(shadowVector);
 }
 
+float3 getConeSampleFromLightInfo(uint sampleNum, OrbLightInfo light, float3 origin, out float distToLightEdge)
+{
+    float3 lightV = light.position - origin;
+    return getConeSample(sampleNum, lightV, light.radius, distToLightEdge);
+}
+
 float3 RandOnUnitSphere(float4 seed)
 {
-    float l0 = length(seed);
-    float l1 = l0 * l0;
-    float theta = Rand(float2(l0, l0 * 0.5)) * 2 * PI;
-    float v = Rand(float2(l1, l1 * 0.5));
+    //float l0 = length(seed);
+    //float l1 = l0 * l0;
+    float theta = Rand(frac(seed.xy + seed.zw)) * 2 * PI;
+    float v = Rand(frac(seed.yw * seed.xz));
     float phi = acos((2 * v) - 1);
     float3 pt = float3(sin(phi) * cos(theta), sin(phi) * sin(theta), cos(phi));
 
@@ -199,8 +248,8 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     //Sponza
     plInfo.position = float3(-200, 700, 0);
     plInfo.color = float3(1, 1, 1.0);
-    plInfo.luminocity = 500000;
-    plInfo.radius = 30;
+    plInfo.luminocity = 250000;
+    plInfo.radius = 50;
     
     //Cornell-box
     //plInfo.position = float3(0, 1.5, 0);
@@ -221,9 +270,9 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     //plInfo2.radius = 1;
     
     //Sun temple
-    //plInfo.position = float3(0, 1200, 0);
-    //plInfo.color = float3(1, 1, 1);
-    //plInfo.luminocity = 1000000;
+    //plInfo.position = float3(-4, 242, -3176);
+    //plInfo.color = float3(.988, .541, .09);
+    //plInfo.luminocity = 30000;
     //plInfo.radius = 50;
     
     //Stanford bunny
@@ -239,21 +288,64 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     
     //Shadow calc
     float distToLight = params.rayTMax;
-    float3 lightDir = getConeSample(plInfo, worldOriginOffsetOut, distToLight);
-    bool shadowed = IsShadowed(lightDir, worldOriginOffsetOut, distToLight, vertex.normal);
-    float3 lightColor = plInfo.color * plInfo.luminocity / pow(distToLight, 2);
+    float3 lightDir = 0;
+    bool shadowed = false;
+    
+    float3 skyBlue = float3(0.529, 0.808, 0.922);
     
     //Default ambiance;
-    color *= 0.1;
+    color *= 0.2;
+
     
     //Sun temple ambiance
-    //color *= 0.3;
+    //color *= 0.5;
     
-    if (!shadowed)
+    color += skyBlue * 0.1;
+    float3 ambientBaseline = color;
+    
+    float3 contribution = 0;
+    uint shadowSamples = 1;
+    float brightness = 0;
+    for (int i = 0; i < shadowSamples; i++)
     {
-        color += diffuse * max(dot(lightDir, vertex.normal), 0.0f) * lightColor;
-        color += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, vertex.normal)), viewDirection), 0.0), material.Shininess);
+        distToLight = params.rayTMax;
+        lightDir = getConeSampleFromLightInfo(i, plInfo, worldOriginOffsetOut, distToLight);
+        float lightBrightness = plInfo.luminocity / pow(distToLight, 2);
+        shadowed = lightBrightness > 0.001 ? IsShadowed(lightDir, worldOriginOffsetOut, distToLight, vertex.normal) : false;
+        
+        if (!shadowed)
+        {
+            contribution += diffuse * max(dot(lightDir, vertex.normal), 0.0f);
+            contribution += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, vertex.normal)), viewDirection), 0.0), material.Shininess);
+            brightness += lightBrightness;
+        }        
     }
+    contribution /= shadowSamples;
+    contribution *= plInfo.color * brightness / shadowSamples;
+    color += contribution;
+    
+    //Directional light
+    
+    //Sun Temple
+    //float3 sunDir = float3(0, 0.3, 1);
+    //float sunRadiusParam = 0.3;
+    
+    //Sponza
+    float3 sunDir = float3(0, 0.9, 1);
+    float sunRadiusParam = 0.6;
+    
+    uint sunSamples = 3;
+    contribution = 0;
+    for (i = 0; i < sunSamples; i++)
+    {
+        lightDir = getConeSample(i, sunDir, sunRadiusParam, distToLight);
+        if (!IsShadowed(lightDir, worldOriginOffsetOut, params.rayTMax, vertex.normal))
+        {
+            contribution += diffuse * max(dot(lightDir, vertex.normal), 0.0f);
+            contribution += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, vertex.normal)), viewDirection), 0.0), material.Shininess);
+        }        
+    }
+    color += contribution / sunSamples;
     
     //For sibenik mainly
     //distToLight = params.rayTMax;
@@ -267,7 +359,7 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     //    color += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, vertex.normal)), viewDirection), 0.0), material.Shininess);
     //}
 
-    float effectThreshold = 0.25;
+    float effectThreshold = 0.35;
     float effectMargin = 0.1;
     float distanceNormalizer = 1 / params.rayTMax;
     float normedDist = RayTCurrent() * distanceNormalizer;
@@ -313,12 +405,14 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     //if (payload.RecursionDepthRemaining > 0)
     if (payload.RecursionDepthRemaining == params.recursionDepth && params.useIndirectIllum && normedDist < effectThreshold)
     {
-        float3 outDir = RandOnUnitSphere(float4(worldOriginOffsetOut, params.elapsedTimeSeconds % 20));
+        float2 blueNoiseVec = BlueNoiseInDisk[params.frameCount % 64];
+        float worldSeed = frac(worldOriginOffsetOut.x * worldOriginOffsetOut.y + worldOriginOffsetOut.z);
+        float3 outDir = RandOnUnitSphere(float4(frac(params.frameCount * GOLDEN), worldSeed, blueNoiseVec.x + blueNoiseVec.y, params.elapsedTimeSeconds % 20));
 
         outDir *= sign(dot(outDir, vertex.normal));
         
         float4 illumColorAndT = LaunchRecursive(outDir, payload.RecursionDepthRemaining, worldOriginOffsetOut);
-        color += illumColorAndT.rgb * max(dot(outDir, vertex.normal), 0.0f) * effectDropoff;
+        color += clamp(illumColorAndT.rgb * max(dot(outDir, vertex.normal), 0.0f) * effectDropoff * pow(1 - clamp(illumColorAndT.a / params.rayTMax, 0, 1), 2) - ambientBaseline, 0, 1);
     }
 
     //TODO: Maybe avoidable to always do this loop if no transparency was encountered. Minor improvement expected though...
