@@ -37,6 +37,8 @@ public:
 	D3D12Global D3D = {};
 	D3D12Resources Resources = {};
 
+	uint32_t screenshotsLeftToTake = 0;
+
 protected:
 	DXRGlobal DXR = {};
 	D3D12ShaderCompilerInfo ShaderCompiler;
@@ -67,7 +69,6 @@ protected:
 	bool IsDLSSAvailable = false;
 	bool IsDLSSFeatureInitialized = false;
 
-	uint32_t screenshotsLeftToTake = 0;
 	uint32_t totalScreenshots = 0;
 	bool disableDLSSForScreenShot = false;
 	bool disableFOVForScreenShot = false;

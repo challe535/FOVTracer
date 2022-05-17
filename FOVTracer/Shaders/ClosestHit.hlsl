@@ -285,10 +285,10 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     OrbLightInfo plInfo;
 
     //Sponza
-    plInfo.position = float3(-200, 700, 0);
-    plInfo.color = float3(1, 1, 1.0);
-    plInfo.luminocity = 250000;
-    plInfo.radius = 50;
+    //plInfo.position = float3(-200, 700, 0);
+    //plInfo.color = float3(1, 1, 1.0);
+    //plInfo.luminocity = 250000;
+    //plInfo.radius = 50;
     
     //Cornell-box
     //plInfo.position = float3(0, 1.39, 0);
@@ -309,16 +309,16 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     //plInfo2.radius = 1;
     
     //Sun temple
-    //plInfo.position = float3(-4, 242, -3176);
-    //plInfo.color = float3(.988, .541, .09);
-    //plInfo.luminocity = 30000;
-    //plInfo.radius = 50;
+    plInfo.position = float3(-4, 242, -3176);
+    plInfo.color = float3(.988, .541, .09);
+    plInfo.luminocity = 30000;
+    plInfo.radius = 50;
     
-    //OrbLightInfo plInfo2;
-    //plInfo2.position = float3(-60, 905, -2520);
-    //plInfo2.color = float3(0.8, 0.8, 1);
-    //plInfo2.luminocity = 600000;
-    //plInfo2.radius = 50;
+    OrbLightInfo plInfo2;
+    plInfo2.position = float3(-60, 905, -2520);
+    plInfo2.color = float3(0.8, 0.8, 1);
+    plInfo2.luminocity = 600000;
+    plInfo2.radius = 50;
     
     //Stanford bunny
     //plInfo.position = float3(0.3, 1.5, -0.3);
@@ -339,29 +339,29 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     float3 skyBlue = float3(0.529, 0.808, 0.922);
     
     //Default ambiance;
-    color *= 0.2;
+    //color *= 0.2;
 
     
     //Sun temple ambiance
-    //color *= 0.75;
+    color *= 0.75;
     
     color += skyBlue * 0.1;
     float3 ambientBaseline = color;
     
     color += sampleOrbLight(3, plInfo, worldOriginOffsetOut, vertex.normal, viewDirection, diffuse);
-    //color += sampleOrbLight(3, plInfo2, worldOriginOffsetOut, vertex.normal, viewDirection, diffuse);
+    color += sampleOrbLight(3, plInfo2, worldOriginOffsetOut, vertex.normal, viewDirection, diffuse);
     
     //Directional light
     
     //Sun Temple
-    //float3 sunDir = float3(0, 0.3, 1);
-    //float sunRadiusParam = 0.02;
-    //float sunStrength = 1;
+    float3 sunDir = float3(0, 0.3, 1);
+    float sunRadiusParam = 0.02;
+    float sunStrength = 1;
     
     //Sponza
-    float3 sunDir = float3(0, 0.9, 1);
-    float sunRadiusParam = 0.6;
-    float sunStrength = 1;
+    //float3 sunDir = float3(0, 0.9, 1);
+    //float sunRadiusParam = 0.6;
+    //float sunStrength = 1;
     
     color += sampleDirLight(3, sunDir, worldOriginOffsetOut, vertex.normal, viewDirection, diffuse, sunRadiusParam, sunStrength);
 
@@ -375,13 +375,13 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     //There doesn't seem to be any clear cut way to determine reflectivity so adjust on a scene by scene basis.
     float reflectivity = 0;
     //Use this for Cornell-Box
-    //if (any(material.TransmitanceFilter < 0.999))
-    //    reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
-    //else
-    //    reflectivity = (material.SpecularColor.r + material.SpecularColor.g + material.SpecularColor.b) / 3.0;
+    if (any(material.TransmitanceFilter < 0.999))
+        reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
+    else
+        reflectivity = (material.SpecularColor.r + material.SpecularColor.g + material.SpecularColor.b) / 3.0;
 
     //Use this for sponza
-    reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
+    //reflectivity = pow((material.RefractIndex - 1) / (material.RefractIndex + 1), 2);
     
     //Use this for sibenik
     //reflectivity = (material.SpecularColor.r + material.SpecularColor.g + material.SpecularColor.b) / 3.0;

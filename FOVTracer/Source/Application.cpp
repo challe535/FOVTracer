@@ -39,11 +39,11 @@ void Application::Init(LONG width, LONG height, HINSTANCE& instance, LPCWSTR tit
 
 	Log::Init();
 
-	//RayScene.LoadFromPath(Utils::GetResourcePath("SunTemple/SunTemple.fbx"), false);
+	RayScene.LoadFromPath(Utils::GetResourcePath("SunTemple/SunTemple.fbx"), false);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("cornell_box/CornellBox-Sphere.obj"), false);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("sibenik/sibenik.obj"), true);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("San_Miguel/san-miguel-low-poly.obj"), false);
-	RayScene.LoadFromPath(Utils::GetResourcePath("sponza/sponza.obj"), false);
+	//RayScene.LoadFromPath(Utils::GetResourcePath("sponza/sponza.obj"), false);
 	//RayScene.LoadFromPath(Utils::GetResourcePath("misc/bunny.obj"), true);
 	CORE_INFO("{0} objects in scene.", RayScene.GetNumSceneObjects());
 
@@ -131,6 +131,8 @@ void Application::Run()
 	std::vector<float> compute_times;
 	std::vector<float> dlss_times;
 	std::vector<float> total_times;
+
+
 
 	while (WM_QUIT != msg.message)
 	{
@@ -242,7 +244,7 @@ void Application::Run()
 		ImGui::NewFrame();
 		
 		bool opened = ImGui::Begin("Render Time", nullptr, ImGuiWindowFlags_None);
-		if (opened && !capturing_times)
+		if (opened && !capturing_times && !(RayTracer.screenshotsLeftToTake > 0))
 		{
 			ImGui::Text("Frame rate: %.3f fps", FpsRunningAverage);
 			ImGui::Text("Raytracing time: %.3f ms", RaytraceTimeMS);
@@ -337,6 +339,33 @@ void Application::Run()
 			else  CORE_WARN("==== CAPTURING TIMES ENDED ====");
 			capturing_times = !capturing_times;
 		}
+
+		if (RayTracer.screenshotsLeftToTake > 0)
+		{
+			auto n = nScrShot - RayTracer.screenshotsLeftToTake;
+
+			switch (n)
+			{
+				case 600: 
+					TraceParams.isFoveatedRenderingEnabled = true;
+					break;
+				case 1200:
+					TraceParams.foveationAreaThreshold = 0.15;
+					break;
+				case 1800:
+					IsDLSSEnabled = true;
+					RayTracer.SetResolution("1920x1080", IsDLSSEnabled, ViewportRatio, CustomRenderResolution);
+					break;
+				case 2400:
+					ComputeParams.disableTAA = false;
+					break;
+				case 2800:
+					IsDLSSEnabled = false;
+					RayTracer.SetResolution("1920x1080", IsDLSSEnabled, ViewportRatio, CustomRenderResolution);
+					break;
+			}
+		}
+
 
 		if (capturing_times)
 		{
