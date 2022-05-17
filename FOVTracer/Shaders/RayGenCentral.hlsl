@@ -6,20 +6,6 @@ float Rand(float2 uv)
     return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
 }
 
-float4 getClip(float3 worldPos, float aspect)
-{
-    float3 worldDelta = worldPos - viewOriginAndTanHalfFovY.xyz;
-    float4 clip = mul(view, float4(worldDelta, 0));
-
-    clip.x /= aspect;
-    clip.xy /= viewOriginAndTanHalfFovY.w * clip.z;
-    clip.y = -clip.y;
-
-    clip.xy = clip.xy * 0.5 + 0.5;
-    
-    return clip;
-}
-
 float2 LogPolar2Screen(float2 logIndex, float2 dimensions, float2 fovealPoint, float B, float L)
 {
     return exp(L * kernelFunc(logIndex.x / dimensions.x, params.kernelAlpha)) * float2(cos(B * logIndex.y), sin(B * logIndex.y)) + fovealPoint;
@@ -74,9 +60,6 @@ void RayGenCentral()
         {
             float2 AdjustedIndex = LaunchIndex + float2(offsetX, offsetY);
             float2 JitteredIndex = AdjustedIndex + jitter * stepSize;
-
-            //if ((JitteredIndex / LaunchDimensions).x < params.foveationAreaThreshold)
-            //    continue;
             
             float3 rayDir = GetRayDir(AdjustedIndex, LaunchDimensions, aspectRatio, fovealPoint, B, L);
             float3 jitterDir = GetRayDir(JitteredIndex, LaunchDimensions, aspectRatio, fovealPoint, B, L);
@@ -136,8 +119,8 @@ void RayGenCentral()
     RTOutput2[LaunchIndex.xy] = float4(finalColor, 1.0f);
     
     float2 motionIndex = LaunchIndex;
-    float2 motion = motionIndex - getClip(WorldPosBuffer[LaunchIndex].xyz, aspectRatio).xy * LaunchDimensions;
-    MotionOutput[LaunchIndex.xy] = motion;
-
-    WorldPosBuffer[LaunchIndex.xy] = finalWorldPosAndDepth;
+    float2 motion = motionIndex - getClip(WorldPosBuffer1[LaunchIndex].xyz, aspectRatio).xy * LaunchDimensions;
+    MotionOutput1[LaunchIndex.xy] = float4(motion, WorldPosBuffer1[LaunchIndex].w, 0);;
+    
+    WorldPosBuffer1[LaunchIndex.xy] = finalWorldPosAndDepth;
 }

@@ -28,7 +28,7 @@
 
 namespace DX12Constants
 {
-	constexpr uint32_t descriptors_per_shader = 12 + NUM_HISTORY_BUFFER;
+	constexpr uint32_t descriptors_per_shader = 14 + NUM_HISTORY_BUFFER;
 	const std::string blue_noise_tex_path = "FreeBlueNoiseTextures/Data/128_128/LDR_LLL1_0.png";
 }
 
@@ -74,7 +74,7 @@ struct TracerParameters
 	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(.5f, .5f);
 
 	uint32_t isFoveatedRenderingEnabled = 0;
-	float kernelAlpha = 3.0f;
+	float kernelAlpha = 4.0f;
 	float viewportRatio = 1.0f;
 	uint32_t isDLSSEnabled = 0;
 
@@ -88,6 +88,30 @@ struct TracerParameters
 	float foveationAreaThreshold = 0.0;
 
 	uint32_t frameCount = 0;
+};
+
+struct ComputeParams
+{
+	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(.5f, .5f);
+	uint32_t isFoveatedRenderingEnabled = 0;
+	float kernelAlpha = 4.0f;
+
+	DirectX::XMFLOAT2 resoltion = DirectX::XMFLOAT2(1920, 1080);
+	DirectX::XMFLOAT2 jitterOffset = DirectX::XMFLOAT2(0, 0);
+
+	float blurKInner = 0.0f;
+	float blurKOuter = 0.0f;
+	float blurA = 0.4f;
+	uint32_t isMotionView = 0;
+
+	uint32_t isDepthView = 0;
+	uint32_t isWorldPosView = 0;
+	uint32_t disableTAA = 0;
+	uint32_t usingDLSS = 0;
+
+	uint32_t takingReferenceScreenshot = 0;
+	float foveationAreaThreshold = 0.0;
+	float fpsAvg = 0;
 };
 
 struct TextureInfo
@@ -153,25 +177,7 @@ struct D3D12Global
 	bool Vsync = false;
 };
 
-struct ComputeParams
-{
-	DirectX::XMFLOAT2 fovealCenter = DirectX::XMFLOAT2(.5f, .5f);
-	uint32_t isFoveatedRenderingEnabled = 0;
-	float kernelAlpha = 3.0f;
-	DirectX::XMFLOAT2 resoltion = DirectX::XMFLOAT2(1920, 1080);
-	DirectX::XMFLOAT2 jitterOffset = DirectX::XMFLOAT2(0, 0);
-	float blurKInner = 30.0f;
-	float blurKOuter = 7.0f;
-	float blurA = 0.65f;
 
-	uint32_t isMotionView = 0;
-	uint32_t isDepthView = 0;
-	uint32_t isWorldPosView = 0;
-	uint32_t disableTAA = 0;
-	uint32_t usingDLSS = 0;
-	uint32_t takingReferenceScreenshot = 0;
-	float foveationAreaThreshold = 0.0;
-};
 
 struct ComputeProgram
 {
@@ -274,9 +280,9 @@ struct SceneObjectResource
 struct D3D12Resources
 {
 	ID3D12Resource* DXROutput[NUM_HISTORY_BUFFER];
-	ID3D12Resource* MotionOutput;
+	ID3D12Resource* MotionOutput[2];
 	ID3D12Resource* FinalMotionOutput;
-	ID3D12Resource* WorldPosBuffer;
+	ID3D12Resource* WorldPosBuffer[2];
 	ID3D12Resource* Log2CartOutput;
 
 	ID3D12Resource* DLSSDepthInput;
@@ -516,7 +522,7 @@ namespace DXR
 	void Add_Alpha_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 	void Add_Shadow_AnyHit_Program(D3D12Global& d3d, DXRGlobal& dxr, D3D12ShaderCompilerInfo& shaderCompiler);
 
-	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested, bool dlssPreScrshot, bool clearTAA);
+	void Build_Command_List(D3D12Global& d3d, DXRGlobal& dxr, D3D12Resources& resources, D3D12Compute& dxComp, DLSSConfig& dlssConfig, bool scrshotRequested, bool dlssPreScrshot, bool clearTAA, bool TAAEnabled);
 
 	void Destroy(DXRGlobal& dxr);
 }

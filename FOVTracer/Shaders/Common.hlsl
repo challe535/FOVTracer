@@ -87,8 +87,10 @@ RWTexture2D<float4> RTOutput1				: register(u1);
 RWTexture2D<float4> RTOutput2				: register(u2);
 RWTexture2D<float4> RTOutput3				: register(u3);
 RWTexture2D<float4> RTOutput4				: register(u4);
-RWTexture2D<float2> MotionOutput            : register(u5);
-RWTexture2D<float4> WorldPosBuffer          : register(u6);
+RWTexture2D<float4> MotionOutput            : register(u5);
+RWTexture2D<float4> MotionOutput1           : register(u6);
+RWTexture2D<float4> WorldPosBuffer          : register(u7);
+RWTexture2D<float4> WorldPosBuffer1         : register(u8);
 
 RaytracingAccelerationStructure SceneBVH	: register(t0);
 
@@ -149,4 +151,18 @@ VertexAttributes GetVertexAttributes(uint triangleIndex, float3 barycentrics)
     v.triCross = cross(vps[1] - vps[0], vps[2] - vps[0]);
 
 	return v;
+}
+
+float4 getClip(float3 worldPos, float aspect)
+{
+    float3 worldDelta = worldPos - viewOriginAndTanHalfFovY.xyz;
+    float4 clip = mul(view, float4(worldDelta, 0));
+
+    clip.x /= aspect;
+    clip.xy /= viewOriginAndTanHalfFovY.w * clip.z;
+    clip.y = -clip.y;
+
+    clip.xy = clip.xy * 0.5 + 0.5;
+    
+    return clip;
 }

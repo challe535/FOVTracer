@@ -29,7 +29,7 @@ class Tracer
 public:
 	void Init(TracerConfigInfo& config, HWND& window, Scene& scene);
 	void Update(Scene& scene, TracerParameters& params, ComputeParams& cParams, float jitterStrength);
-	void Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool disableFOV, bool disableDLSS, uint32_t numberOfScreenshots, uint32_t depth);
+	float Render(bool scrshotRequested, uint32_t groundTruthSqrtSpp, bool disableFOV, bool disableDLSS, uint32_t numberOfScreenshots, uint32_t depth, bool takingVid, bool TAAEnabled);
 	void Cleanup();
 	void SetResolution(const char* ResolutionName, bool IsDLSSEnabled, float viewportRatio, bool useViewportRatio);
 	void AddTargetResolution(unsigned int Width, unsigned int Height, const std::string& Name);
@@ -71,4 +71,5 @@ protected:
 	uint32_t totalScreenshots = 0;
 	bool disableDLSSForScreenShot = false;
 	bool disableFOVForScreenShot = false;
+	bool takingVideo = false;
 };

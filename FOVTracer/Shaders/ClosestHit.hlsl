@@ -83,22 +83,22 @@ float Rand(float2 seed)
     return frac(sin(dot(seed, float2(12.9898, 78.233))) * 43758.5453);
 }
 
-float3 getConeSample(uint sampleNum, float3 vToLightCenter, float radius, out float distToLightEdge)
+float3 getConeSample(uint sampleNum, float3 vToLightCenter, float radius, out float distToLightEdge, uint totalSamples)
 {
-    float dir = normalize(vToLightCenter);
-    float3 perpL = cross(dir, float3(0.f, 1.0f, 0.f));
+    float3 perpL = normalize(cross(vToLightCenter, float3(0.f, 1.0f, 0.f)));
+    float3 perpU = normalize(cross(perpL, vToLightCenter));
     
-    if (all(perpL == 0.0f))
-    {
-        perpL.x = 1.0;
-    }
-    
-    float3 perpU = cross(perpL, dir);
-    
-    float angle = frac(blueNoise.Load(int3(DispatchRaysIndex() % 128)) + params.frameCount * GOLDEN);
+    float2 offset = 0;
+
+    float frameCount = params.frameCount % 128;
+    float3 worldPos = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    float2 posSeed = float2(worldPos.x * worldPos.y / (worldPos.z * GOLDEN), worldPos.x * worldPos.y + worldPos.z * PI);
+    float angle = frac(blueNoise.Load(int3((DispatchRaysIndex().xy + frac(posSeed) * 128) % 128, 0)).x + frameCount * GOLDEN) * 2 * PI;
     float2x2 rot = { cos(angle), -sin(angle), sin(angle), cos(angle) };
     
-    float2 offset = mul(rot, BlueNoiseInDisk[sampleNum] * radius);
+    float sampleRand = frac(sin(frac(posSeed.x * posSeed.y + frameCount * GOLDEN) * 2 * PI));
+    offset = mul(rot, BlueNoiseInDisk[(floor(sampleRand * (64 - totalSamples)) + sampleNum) % 64]) * radius;
+    
     float3 vInDisk = perpL * offset.x + perpU * offset.y;
     
     float3 shadowVector = vToLightCenter + vInDisk;
@@ -106,16 +106,14 @@ float3 getConeSample(uint sampleNum, float3 vToLightCenter, float radius, out fl
     return normalize(shadowVector);
 }
 
-float3 getConeSampleFromLightInfo(uint sampleNum, OrbLightInfo light, float3 origin, out float distToLightEdge)
+float3 getConeSampleFromLightInfo(uint sampleNum, OrbLightInfo light, float3 origin, out float distToLightEdge, uint totalSamples)
 {
     float3 lightV = light.position - origin;
-    return getConeSample(sampleNum, lightV, light.radius, distToLightEdge);
+    return getConeSample(sampleNum, lightV, light.radius, distToLightEdge, totalSamples);
 }
 
 float3 RandOnUnitSphere(float4 seed)
 {
-    //float l0 = length(seed);
-    //float l1 = l0 * l0;
     float theta = Rand(frac(seed.xy + seed.zw)) * 2 * PI;
     float v = Rand(frac(seed.yw * seed.xz));
     float phi = acos((2 * v) - 1);
@@ -150,6 +148,47 @@ bool IsShadowed(float3 lightDir, float3 origin, float maxDist, float3 normal)
 	);
     
     return shadowPayload.isHit;
+}
+
+float3 sampleOrbLight(uint sampleN, OrbLightInfo lInfo, float3 origin, float3 normal, float3 viewDir, float3 diffuse)
+{
+    float3 contribution = 0;
+    uint shadowSamples = sampleN;
+    float brightness = 0;
+    for (int i = 0; i < shadowSamples; i++)
+    {
+        float distToLight = params.rayTMax;
+        float3 lightDir = getConeSampleFromLightInfo(i, lInfo, origin, distToLight, shadowSamples);
+        float lightBrightness = lInfo.luminocity / pow(distToLight, 2);
+        bool shadowed = lightBrightness > 0.001 ? IsShadowed(lightDir, origin, distToLight, normal) : false;
+        
+        if (!shadowed)
+        {
+            contribution += diffuse * max(dot(lightDir, normal), 0.0f);
+            contribution += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, normal)), viewDir), 0.0), material.Shininess);
+            brightness += lightBrightness;
+        }
+    }
+    contribution /= shadowSamples;
+    contribution *= lInfo.color * brightness / shadowSamples;
+    return contribution;
+}
+
+float3 sampleDirLight(uint sampleN, float3 dir, float3 origin, float3 normal, float3 viewDir, float3 diffuse, float radius, float strength)
+{
+    uint samples = sampleN;
+    float3 contribution = 0;
+    float dist = 0;
+    for (int i = 0; i < samples; i++)
+    {
+        float3 lightDir = getConeSample(i, dir, radius, dist, samples);
+        if (!IsShadowed(lightDir, origin, params.rayTMax, normal))
+        {
+            contribution += diffuse * max(dot(lightDir, normal), 0.0f);
+            contribution += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, normal)), viewDir), 0.0), material.Shininess);
+        }
+    }
+    return strength * contribution / samples;
 }
 
 float4 LaunchRecursive(float3 dir, uint currentDepth, float3 origin)
@@ -252,10 +291,10 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     plInfo.radius = 50;
     
     //Cornell-box
-    //plInfo.position = float3(0, 1.5, 0);
+    //plInfo.position = float3(0, 1.39, 0);
     //plInfo.color = float3(1, 1, 1.0);
     //plInfo.luminocity = 1;
-    //plInfo.radius = 0.3;
+    //plInfo.radius = 0.1;
     
     //Sibenik
     //plInfo.position = float3(6.5, -4, 0);
@@ -274,6 +313,12 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     //plInfo.color = float3(.988, .541, .09);
     //plInfo.luminocity = 30000;
     //plInfo.radius = 50;
+    
+    //OrbLightInfo plInfo2;
+    //plInfo2.position = float3(-60, 905, -2520);
+    //plInfo2.color = float3(0.8, 0.8, 1);
+    //plInfo2.luminocity = 600000;
+    //plInfo2.radius = 50;
     
     //Stanford bunny
     //plInfo.position = float3(0.3, 1.5, -0.3);
@@ -298,66 +343,27 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
 
     
     //Sun temple ambiance
-    //color *= 0.5;
+    //color *= 0.75;
     
     color += skyBlue * 0.1;
     float3 ambientBaseline = color;
     
-    float3 contribution = 0;
-    uint shadowSamples = 1;
-    float brightness = 0;
-    for (int i = 0; i < shadowSamples; i++)
-    {
-        distToLight = params.rayTMax;
-        lightDir = getConeSampleFromLightInfo(i, plInfo, worldOriginOffsetOut, distToLight);
-        float lightBrightness = plInfo.luminocity / pow(distToLight, 2);
-        shadowed = lightBrightness > 0.001 ? IsShadowed(lightDir, worldOriginOffsetOut, distToLight, vertex.normal) : false;
-        
-        if (!shadowed)
-        {
-            contribution += diffuse * max(dot(lightDir, vertex.normal), 0.0f);
-            contribution += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, vertex.normal)), viewDirection), 0.0), material.Shininess);
-            brightness += lightBrightness;
-        }        
-    }
-    contribution /= shadowSamples;
-    contribution *= plInfo.color * brightness / shadowSamples;
-    color += contribution;
+    color += sampleOrbLight(3, plInfo, worldOriginOffsetOut, vertex.normal, viewDirection, diffuse);
+    //color += sampleOrbLight(3, plInfo2, worldOriginOffsetOut, vertex.normal, viewDirection, diffuse);
     
     //Directional light
     
     //Sun Temple
     //float3 sunDir = float3(0, 0.3, 1);
-    //float sunRadiusParam = 0.3;
+    //float sunRadiusParam = 0.02;
+    //float sunStrength = 1;
     
     //Sponza
     float3 sunDir = float3(0, 0.9, 1);
     float sunRadiusParam = 0.6;
+    float sunStrength = 1;
     
-    uint sunSamples = 3;
-    contribution = 0;
-    for (i = 0; i < sunSamples; i++)
-    {
-        lightDir = getConeSample(i, sunDir, sunRadiusParam, distToLight);
-        if (!IsShadowed(lightDir, worldOriginOffsetOut, params.rayTMax, vertex.normal))
-        {
-            contribution += diffuse * max(dot(lightDir, vertex.normal), 0.0f);
-            contribution += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, vertex.normal)), viewDirection), 0.0), material.Shininess);
-        }        
-    }
-    color += contribution / sunSamples;
-    
-    //For sibenik mainly
-    //distToLight = params.rayTMax;
-    //lightDir = getConeSample(plInfo2, worldOriginOffsetOut, distToLight);
-    //shadowed = IsShadowed(lightDir, worldOriginOffsetOut, distToLight, vertex.normal);
-    //lightColor = plInfo2.color * plInfo2.luminocity / pow(distToLight, 2);
-    
-    //if (!shadowed)
-    //{
-    //    color += diffuse * max(dot(lightDir, vertex.normal), 0.0f) * lightColor;
-    //    color += material.SpecularColor * pow(max(dot(normalize(reflect(-lightDir, vertex.normal)), viewDirection), 0.0), material.Shininess);
-    //}
+    color += sampleDirLight(3, sunDir, worldOriginOffsetOut, vertex.normal, viewDirection, diffuse, sunRadiusParam, sunStrength);
 
     float effectThreshold = 0.35;
     float effectMargin = 0.1;

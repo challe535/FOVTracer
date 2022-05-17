@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <iostream>
+#include <fstream>
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
@@ -115,6 +116,22 @@ void Application::Run()
 	Quaternion OriginalCamOrianetation = SceneCamera.Orientation;
 	Vector2f FovealPoint(0.5, 0.5);
 
+	bool TakingVideo = false;
+
+	bool orbitCamera = false;
+	Vector3f OrbitCenter;
+	bool FollowOrbit = false;
+	float OrbitalRadius = 0.f;
+	float OrbitalAngle = 0.f;
+	float RecordingFpsAvg = 0;
+
+	bool capturing_times = false;
+	uint32_t timing_captures = 0;
+	std::vector<float> ray_trace_times;
+	std::vector<float> compute_times;
+	std::vector<float> dlss_times;
+	std::vector<float> total_times;
+
 	while (WM_QUIT != msg.message)
 	{
 		auto const FrameStart = std::chrono::high_resolution_clock::now();
@@ -138,12 +155,16 @@ void Application::Run()
 		ComputeParams.isFoveatedRenderingEnabled = TraceParams.isFoveatedRenderingEnabled;
 		ComputeParams.kernelAlpha = TraceParams.kernelAlpha;
 		ComputeParams.foveationAreaThreshold = TraceParams.foveationAreaThreshold;
+		ComputeParams.fpsAvg = IsRecording ? RecordingFpsAvg : FpsRunningAverage;
 		//ComputeParams.resetColorHistory = false;
 
 		TraceParams.frameCount = FrameCount;
 
 		if (!IsRecording)
 		{
+			OrbitalAngle = 0;
+			RecordingFpsAvg = FpsRunningAverage;
+
 			cameraInterpT = 0;
 
 			float CameraForwardMove = static_cast<float>(InputHandler->IsKeyDown(W_KEY) - InputHandler->IsKeyDown(S_KEY));
@@ -192,6 +213,18 @@ void Application::Run()
 				Vector3f Movement = Vector3f(3 * sin(cameraInterpT * cameraMoveSpeed), 0, cos(cameraInterpT * cameraMoveSpeed));
 				SceneCamera.Position = SceneCamera.Position + Movement * cameraMoveAmount;
 			}
+
+			if (orbitCamera)
+			{
+				Vector3f Dir(cos(OrbitalAngle), 0, sin(OrbitalAngle));
+				SceneCamera.Position = OrbitCenter + Dir * OrbitalRadius;
+
+				float DeltaAngle = DirectX::XM_2PI / nScrShot;
+
+				SceneCamera.Orientation = Quaternion(-OrbitalAngle - (!FollowOrbit ? DirectX::XM_PI * 0.5f : 0), Vector3f(0, 1, 0));
+
+				OrbitalAngle += DeltaAngle;
+			}
 		}
 
 		if (SetRotationFromUI)
@@ -209,11 +242,13 @@ void Application::Run()
 		ImGui::NewFrame();
 		
 		bool opened = ImGui::Begin("Render Time", nullptr, ImGuiWindowFlags_None);
-		if (opened)
+		if (opened && !capturing_times)
 		{
 			ImGui::Text("Frame rate: %.3f fps", FpsRunningAverage);
 			ImGui::Text("Raytracing time: %.3f ms", RaytraceTimeMS);
+			ImGui::Text("Compute time: %.3f ms", ComputeTimeMS);
 			ImGui::Text("DLSS time: %.3f ms", DLSSTimeMS);
+			ImGui::Text("Total time: %.3f ms", RaytraceTimeMS + ComputeTimeMS + DLSSTimeMS);
 			ImGui::SliderInt("Sqrt spp", reinterpret_cast<int*>(&TraceParams.sqrtSamplesPerPixel), 0, 10);
 			ImGui::SliderInt("Recursion depth", reinterpret_cast<int*>(&TraceParams.recursionDepth), 1, 4);
 			ImGui::Checkbox("Indirect illumination (Expensive!)", reinterpret_cast<bool*>(&TraceParams.useIndirectIllum));
@@ -268,28 +303,104 @@ void Application::Run()
 			ImGui::SliderFloat("Camera control speed", &CameraSpeed, 0.0f, 300.0f);
 			ImGui::SliderFloat3("Camera position", reinterpret_cast<float*>(&SceneCamera.Position), -10000.f, 10000.f);
 			ImGui::SliderFloat3("Camera rotation", reinterpret_cast<float*>(&CameraEulerRotation), 0.f, 360.f);
+			
 
 			ImGui::Separator();
 			ImGui::Text("Screenshot reference parameters");
+			ImGui::Checkbox("Taking a video?", &TakingVideo);
 			ImGui::SliderInt("Screenshot sqrt spp", reinterpret_cast<int*>(&scrShotSqrtSamples), 1, 15);
-			ImGui::SliderInt("Number of screenshots", reinterpret_cast<int*>(&nScrShot), 1, 300);
+			ImGui::SliderInt("Number of screenshots", reinterpret_cast<int*>(&nScrShot), 1, 3600);
 			ImGui::SliderInt("Reference recursion depth", reinterpret_cast<int*>(&scrShotDepth), 1, 4);
 			ImGui::Checkbox("Disable DLSS", &scrShotDisableDLSS);
 			ImGui::Checkbox("Disable Foveation", &scrShotDisableFOV);
-			ImGui::Checkbox("Sway camera", &swayCamera);
-			ImGui::SliderFloat("Sway speed", &cameraSwaySpeed, 0.f, 2.0f);
-			ImGui::Checkbox("Move camera", &moveCamera);
-			ImGui::SliderFloat("Move speed", &cameraMoveSpeed, 0.f, 2.0f);
-			ImGui::SliderFloat("Move amount", &cameraMoveAmount, 0.f, 100.0f);
+			//ImGui::Checkbox("Sway camera", &swayCamera);
+			//ImGui::SliderFloat("Sway speed", &cameraSwaySpeed, 0.f, 2.0f);
+			//ImGui::Checkbox("Move camera", &moveCamera);
+			//ImGui::SliderFloat("Move speed", &cameraMoveSpeed, 0.f, 2.0f);
+			//ImGui::SliderFloat("Move amount", &cameraMoveAmount, 0.f, 100.0f);
+
+
+			ImGui::Checkbox("Orbit", &orbitCamera);
+			ImGui::SliderFloat3("Orbital center", reinterpret_cast<float*>(&OrbitCenter), -10000.f, 10000.f);
+			ImGui::Checkbox("Look in move dir", &FollowOrbit);
+			ImGui::SliderFloat("Orbital radius", &OrbitalRadius, 0.f, 1000.0f);
 		}
 		ImGui::End();
 
 		ImGui::Render();
-		RayTracer.Render(InputHandler->IsKeyJustPressed(P_KEY), scrShotSqrtSamples, scrShotDisableFOV, scrShotDisableDLSS, nScrShot, scrShotDepth);
+		float ScreenCaptureTime = RayTracer.Render(InputHandler->IsKeyJustPressed(P_KEY), scrShotSqrtSamples, scrShotDisableFOV, scrShotDisableDLSS, nScrShot, scrShotDepth, TakingVideo, !ComputeParams.disableTAA);
+
+
+		if (InputHandler->IsKeyJustPressed(V_KEY))
+		{
+			if (!capturing_times) CORE_WARN("==== CAPTURING TIMES STARTED ====");
+			else  CORE_WARN("==== CAPTURING TIMES ENDED ====");
+			capturing_times = !capturing_times;
+		}
+
+		if (capturing_times)
+		{
+			ray_trace_times.push_back(RaytraceTimeMS);
+			compute_times.push_back(ComputeTimeMS);
+			dlss_times.push_back(DLSSTimeMS);
+			total_times.push_back(RaytraceTimeMS + ComputeTimeMS + DLSSTimeMS);
+
+			timing_captures++;
+
+			//switch (timing_captures){
+			//	case 1000: 
+			//		IsDLSSEnabled = true;
+			//		RayTracer.SetResolution("1920x1080", IsDLSSEnabled, ViewportRatio, CustomRenderResolution);
+			//		break;
+			//	case 2000:
+			//		ComputeParams.disableTAA = false;
+			//		break;
+			//	case 3000:
+			//		CORE_WARN("==== CAPTURING TIMES ENDED ====");
+			//		capturing_times = false;
+			//		break;
+			//}
+
+			//TraceParams.foveationAreaThreshold = static_cast<float>(timing_captures) / 100000.0;
+			//if (timing_captures > 100000)
+			//	capturing_times = false;
+
+		}
+		else if(timing_captures > 0)
+		{
+			CORE_INFO("==== FLUSHING CAPTURED TIMES ====");
+
+			std::ofstream rt_file("../Data/rt_times.txt");
+			std::ofstream cmp_file("../Data/cmp_times.txt");
+			std::ofstream dlss_file("../Data/dlss_times.txt");
+			std::ofstream tot_file("../Data/tot_times.txt");
+
+			//flush vectors
+			for (int i = 0; i < timing_captures; i++)
+			{
+				rt_file << ray_trace_times[i] << '\n';
+				cmp_file << compute_times[i] << '\n';
+				dlss_file << dlss_times[i]  << '\n';
+				tot_file << total_times[i] << '\n';
+			}
+
+			rt_file.close();
+			cmp_file.close();
+			dlss_file.close();
+			tot_file.close();
+
+			//clear vectors
+			ray_trace_times.clear();
+			compute_times.clear();
+			dlss_times.clear();
+			total_times.clear();
+
+			timing_captures = 0;
+		}
 
 		auto const FrameEnd = std::chrono::high_resolution_clock::now();
 
-		DeltaTime = std::chrono::duration<float>(FrameEnd - FrameStart).count();
+		DeltaTime = std::chrono::duration<float>(FrameEnd - FrameStart).count() - ScreenCaptureTime;
 		ElapsedTimeS += DeltaTime;
 
 		float FrameFpsAverage = 1.0f / DeltaTime;

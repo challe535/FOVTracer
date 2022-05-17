@@ -16,6 +16,7 @@ typedef UINT_PTR KeyCode;
 #define Z_KEY 0x5A
 #define X_KEY 0x58
 #define P_KEY 0x50
+#define V_KEY 0x56
 
 class Input
 {

@@ -48,6 +48,7 @@ public:
 	bool IsRecording = false;
 
 	float RaytraceTimeMS = 0.0f;
+	float ComputeTimeMS = 0.0f;
 	float DLSSTimeMS = 0.0f;
 private:
 	HWND Window = nullptr;

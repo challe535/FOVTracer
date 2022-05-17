@@ -6,20 +6,6 @@ float Rand(float2 uv)
     return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
 }
 
-float4 getClip(float3 worldPos, float aspect)
-{
-    float3 worldDelta = worldPos - viewOriginAndTanHalfFovY.xyz;
-    float4 clip = mul(view, float4(worldDelta, 0));
-
-    clip.x /= aspect;
-    clip.xy /= viewOriginAndTanHalfFovY.w * clip.z;
-    clip.y = -clip.y;
-
-    clip.xy = clip.xy * 0.5 + 0.5;
-    
-    return clip;
-}
-
 float2 LogPolar2Screen(float2 logIndex, float2 dimensions, float2 fovealPoint, float B, float L)
 {
     return exp(L * kernelFunc(logIndex.x / dimensions.x, params.kernelAlpha)) * float2(cos(B * logIndex.y), sin(B * logIndex.y)) + fovealPoint;
@@ -142,14 +128,27 @@ void RayGen()
     RTOutput[LaunchIndex.xy] = float4(finalColor, 1.0f);
     
     float2 motionIndex = LaunchIndex;
-    //bool fovMoved = any(params.fovealCenter != params.lastFovealCenter);
     if (params.isFoveatedRenderingEnabled)
     {
-        motionIndex = LogPolar2Screen(LaunchIndex, LaunchDimensions, params.lastFovealCenter * LaunchDimensions, B, L);
+        if (any(abs(params.fovealCenter - params.lastFovealCenter) > 0.001))
+        {
+            fovealPoint = params.lastFovealCenter * LaunchDimensions;
+
+            l1 = LaunchDimensions - fovealPoint;
+            l2 = float2(l1.x, 0 - fovealPoint.y);
+            l3 = float2(0 - fovealPoint.x, 0 - fovealPoint.y);
+            l4 = float2(0 - fovealPoint.x, l1.y);
+
+            maxCornerDist = max(max(length(l1), length(l2)), max(length(l3), length(l4)));
+            L = log(maxCornerDist);
+            B = 2 * PI / LaunchDimensions.y;
+        }
+        
+        motionIndex = LogPolar2Screen(LaunchIndex, LaunchDimensions, fovealPoint, B, L);
     }
     
     float2 motion = motionIndex - getClip(WorldPosBuffer[LaunchIndex].xyz, aspectRatio).xy * LaunchDimensions;
-    MotionOutput[LaunchIndex.xy] = /*fovMoved ? 0 :*/ motion;
+    MotionOutput[LaunchIndex.xy] = float4(motion, WorldPosBuffer[LaunchIndex].w, 0);
 
     WorldPosBuffer[LaunchIndex.xy] = finalWorldPosAndDepth;
 }
